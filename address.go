@@ -24,7 +24,7 @@ const (
 	Ed25519AddressSerializedBytesSize = OneByte + Ed25519AddressBytesLength
 )
 
-// Defines a WOTS adddress.
+// Defines a WOTS address.
 type WOTSAddress [WOTSAddressBytesLength]byte
 
 func (wotsAddr WOTSAddress) Deserialize(data []byte) (int, error) {
