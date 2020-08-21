@@ -18,4 +18,4 @@ jobs:
       - name: Run tests
         run: go test -v -covermode=count
       - name: Run Benchmarks
-        run: go test -bench -v -covermode=count
+        run: go test -bench=.
