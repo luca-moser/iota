@@ -47,19 +47,19 @@ type Ed25519Signature struct {
 	Signature [ed25519.SignatureSize]byte `json:"signature"`
 }
 
-func (e Ed25519Signature) Deserialize(data []byte) (int, error) {
-	// skip type byte
-	data = data[OneByte:]
-	if err := checkExactByteLength(Ed25519SignatureSerializedBytesSize, len(data)); err != nil {
+func (e *Ed25519Signature) Deserialize(data []byte) (int, error) {
+	if err := checkMinByteLength(Ed25519SignatureSerializedBytesSize, len(data)); err != nil {
 		return 0, err
 	}
+	// skip type byte
+	data = data[OneByte:]
 	copy(e.PublicKey[:], data[:ed25519.PublicKeySize])
 	copy(e.Signature[:], data[ed25519.PublicKeySize:])
-	return Ed25519AddressSerializedBytesSize, nil
+	return Ed25519SignatureSerializedBytesSize, nil
 }
 
-func (e Ed25519Signature) Serialize() ([]byte, error) {
-	var b [Ed25519AddressSerializedBytesSize]byte
+func (e *Ed25519Signature) Serialize() ([]byte, error) {
+	var b [Ed25519SignatureSerializedBytesSize]byte
 	b[0] = SignatureEd25519
 	copy(b[OneByte:], e.PublicKey[:])
 	copy(b[OneByte+ed25519.PublicKeySize:], e.Signature[:])

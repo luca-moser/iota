@@ -61,7 +61,7 @@ func (u *UnsignedTransaction) Deserialize(data []byte) (int, error) {
 
 	// advance to payload
 	// TODO: replace with payload deserializer
-	data = data[bytesReadTotal:]
+	data = data[outputBytesRead:]
 	payloadLength, payloadLengthByteSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
 	if err != nil {
 		return 0, err

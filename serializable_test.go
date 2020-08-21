@@ -3,7 +3,6 @@ package iotapkg_test
 import (
 	"bytes"
 	"errors"
-	"math/rand"
 	"testing"
 
 	"github.com/luca-moser/iotapkg"
@@ -52,13 +51,13 @@ func (a *A) Serialize() ([]byte, error) {
 }
 
 func randSerializedA() []byte {
-	keyData := randomBytes(aKeyLength)
+	keyData := randBytes(aKeyLength)
 	return append([]byte{TypeA}, keyData...)
 }
 
 func randA() *A {
 	var k [aKeyLength]byte
-	copy(k[:], randomBytes(aKeyLength))
+	copy(k[:], randBytes(aKeyLength))
 	return &A{Key: k}
 }
 
@@ -80,22 +79,14 @@ func (b *B) Serialize() ([]byte, error) {
 }
 
 func randSerializedB() []byte {
-	nameData := randomBytes(bNameLength)
+	nameData := randBytes(bNameLength)
 	return append([]byte{TypeB}, nameData...)
 }
 
 func randB() *B {
 	var n [bNameLength]byte
-	copy(n[:], randomBytes(bNameLength))
+	copy(n[:], randBytes(bNameLength))
 	return &B{Name: n}
-}
-
-func randomBytes(length int) []byte {
-	var b []byte
-	for i := 0; i < length; i++ {
-		b = append(b, byte(rand.Intn(256)))
-	}
-	return b
 }
 
 func TestDeserializeA(t *testing.T) {
