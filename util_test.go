@@ -230,3 +230,15 @@ func oneInputOutputSignedTransactionPayload() *iotapkg.SignedTransactionPayload 
 		},
 	}
 }
+
+func randEd25519Seed() [ed25519.SeedSize]byte {
+	var b [ed25519.SeedSize]byte
+	read, err := rand.Read(b[:])
+	if read != ed25519.SeedSize {
+		panic(fmt.Sprintf("could not read %d required bytes from secure RNG", ed25519.SeedSize))
+	}
+	if err != nil {
+		panic(err)
+	}
+	return b
+}

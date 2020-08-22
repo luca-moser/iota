@@ -57,29 +57,3 @@ func TestSignedTransactionPayload_Serialize(t *testing.T) {
 		})
 	}
 }
-
-func BenchmarkDeserializeOneInputOutputSignedTransactionPayload(b *testing.B) {
-	data, err := oneInputOutputSignedTransactionPayload().Serialize()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	target := &iotapkg.SignedTransactionPayload{}
-	_, err = target.Deserialize(data)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		target.Deserialize(data)
-	}
-}
-
-func BenchmarkSerializeOneInputOutputSignedTransactionPayload(b *testing.B) {
-	sigTxPayload := oneInputOutputSignedTransactionPayload()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		sigTxPayload.Serialize()
-	}
-}

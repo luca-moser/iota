@@ -20,7 +20,7 @@ const (
 var (
 	ErrSigUnlockBlocksNotUnique = errors.New("signature unlock blocks must be unique")
 	// TODO: might also reference something else in the future than just signature unlock blocks
-	ErrRefUnlockBlockInvalidRef = errors.New("referece unlock block must point to a previous signature unlock block")
+	ErrRefUnlockBlockInvalidRef = errors.New("reference unlock block must point to a previous signature unlock block")
 )
 
 // UnlockBlockSelector implements SerializableSelectorFunc for unlock block types.
