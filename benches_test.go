@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"crypto/ed25519"
@@ -13,7 +13,7 @@ func BenchmarkDeserializeOneIOSigTxPayload(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	target := &iotapkg.SignedTransactionPayload{}
+	target := &iota.SignedTransactionPayload{}
 	_, err = target.Deserialize(data)
 	if err != nil {
 		b.Fatal(err)

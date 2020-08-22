@@ -1,4 +1,4 @@
-package iotapkg
+package iota
 
 import (
 	"crypto/ed25519"

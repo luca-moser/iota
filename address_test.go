@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"errors"
@@ -26,15 +26,15 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 			"not enough bytes",
 			func() []byte {
 				_, wotsAddrData := randWOTSAddr()
-				return wotsAddrData[:iotapkg.WOTSAddressSerializedBytesSize-1]
+				return wotsAddrData[:iota.WOTSAddressSerializedBytesSize-1]
 			}(),
-			iotapkg.ErrInvalidBytes,
+			iota.ErrInvalidBytes,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wotsAddr := &iotapkg.WOTSAddress{}
+			wotsAddr := &iota.WOTSAddress{}
 			bytesRead, err := wotsAddr.Deserialize(tt.wotsAddrData)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
@@ -42,7 +42,7 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.wotsAddrData), bytesRead)
-			assert.Equal(t, tt.wotsAddrData[iotapkg.OneByte:], wotsAddr[:])
+			assert.Equal(t, tt.wotsAddrData[iota.OneByte:], wotsAddr[:])
 		})
 	}
 }
@@ -51,7 +51,7 @@ func TestWOTSAddress_Serialize(t *testing.T) {
 	originWOTSAddr, originData := randWOTSAddr()
 	tests := []struct {
 		name   string
-		source *iotapkg.WOTSAddress
+		source *iota.WOTSAddress
 		target []byte
 	}{
 		{
@@ -85,15 +85,15 @@ func TestEd25519Address_Deserialize(t *testing.T) {
 			"not enough bytes",
 			func() []byte {
 				_, edAddrData := randEd25519Addr()
-				return edAddrData[:iotapkg.Ed25519AddressSerializedBytesSize-1]
+				return edAddrData[:iota.Ed25519AddressSerializedBytesSize-1]
 			}(),
-			iotapkg.ErrInvalidBytes,
+			iota.ErrInvalidBytes,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			edAddr := &iotapkg.Ed25519Address{}
+			edAddr := &iota.Ed25519Address{}
 			bytesRead, err := edAddr.Deserialize(tt.edAddrData)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
@@ -101,7 +101,7 @@ func TestEd25519Address_Deserialize(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.edAddrData), bytesRead)
-			assert.Equal(t, tt.edAddrData[iotapkg.OneByte:], edAddr[:])
+			assert.Equal(t, tt.edAddrData[iota.OneByte:], edAddr[:])
 		})
 	}
 }
@@ -110,7 +110,7 @@ func TestEd25519Address_Serialize(t *testing.T) {
 	originEdAddr, originData := randEd25519Addr()
 	tests := []struct {
 		name   string
-		source *iotapkg.Ed25519Address
+		source *iota.Ed25519Address
 		target []byte
 	}{
 		{

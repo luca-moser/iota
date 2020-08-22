@@ -1,4 +1,4 @@
-package iotapkg
+package iota
 
 import (
 	"encoding/binary"

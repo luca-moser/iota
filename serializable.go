@@ -1,4 +1,4 @@
-package iotapkg
+package iota
 
 import (
 	"bytes"
@@ -9,13 +9,13 @@ import (
 // Serializable is something which knows how to serialize/deserialize itself from/into bytes.
 // This is almost analogous to BinaryMarshaler/BinaryUnmarshaler.
 type Serializable interface {
-	// Serialize returns a serialized byte representation.
-	// This function does not check the serialized data for validity.
-	Serialize() ([]byte, error)
 	// Deserialize deserializes the given data into the object and returns the amount of bytes consumed from data.
 	// If the passed data is not big enough for deserialization, an error must be returned.
 	// During deserialization the data is checked for validity.
 	Deserialize(data []byte) (int, error)
+	// Serialize returns a serialized byte representation.
+	// This function does not check the serialized data for validity.
+	Serialize() ([]byte, error)
 }
 
 // Serializables is a slice of Serializable.

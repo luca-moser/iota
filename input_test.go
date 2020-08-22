@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"errors"
@@ -9,8 +9,8 @@ import (
 )
 
 func TestInputSelector(t *testing.T) {
-	_, err := iotapkg.InputSelector(100)
-	assert.True(t, errors.Is(err, iotapkg.ErrUnknownInputType))
+	_, err := iota.InputSelector(100)
+	assert.True(t, errors.Is(err, iota.ErrUnknownInputType))
 }
 
 func TestUTXOInput_Deserialize(t *testing.T) {
@@ -18,15 +18,15 @@ func TestUTXOInput_Deserialize(t *testing.T) {
 	tests := []struct {
 		name   string
 		data   []byte
-		target *iotapkg.UTXOInput
+		target *iota.UTXOInput
 		err    error
 	}{
 		{"ok", randSerializedUTXOInput, randUTXOInput, nil},
-		{"not enough data", randSerializedUTXOInput[:iotapkg.UTXOInputMinSize-1], randUTXOInput, iotapkg.ErrInvalidBytes},
+		{"not enough data", randSerializedUTXOInput[:iota.UTXOInputMinSize-1], randUTXOInput, iota.ErrInvalidBytes},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u := &iotapkg.UTXOInput{}
+			u := &iota.UTXOInput{}
 			bytesRead, err := u.Deserialize(tt.data)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
@@ -42,7 +42,7 @@ func TestUTXOInput_Serialize(t *testing.T) {
 	randUTXOInput, randSerializedUTXOInput := randUTXOInput()
 	tests := []struct {
 		name   string
-		source *iotapkg.UTXOInput
+		source *iota.UTXOInput
 		target []byte
 		err    error
 	}{
@@ -62,8 +62,8 @@ func TestUTXOInput_Serialize(t *testing.T) {
 
 func TestInputsValidatorFunc(t *testing.T) {
 	type args struct {
-		inputs []iotapkg.Serializable
-		funcs  []iotapkg.InputsValidatorFunc
+		inputs []iota.Serializable
+		funcs  []iota.InputsValidatorFunc
 	}
 	tests := []struct {
 		name    string
@@ -72,52 +72,52 @@ func TestInputsValidatorFunc(t *testing.T) {
 	}{
 		{
 			"ok addr",
-			args{inputs: []iotapkg.Serializable{
-				&iotapkg.UTXOInput{
+			args{inputs: []iota.Serializable{
+				&iota.UTXOInput{
 					TransactionID:          [32]byte{},
 					TransactionOutputIndex: 0,
 				},
-				&iotapkg.UTXOInput{
+				&iota.UTXOInput{
 					TransactionID:          [32]byte{},
 					TransactionOutputIndex: 1,
 				},
-			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefsUniqueValidator()}}, false,
+			}, funcs: []iota.InputsValidatorFunc{iota.InputsUTXORefsUniqueValidator()}}, false,
 		},
 		{
 			"addr not unique",
-			args{inputs: []iotapkg.Serializable{
-				&iotapkg.UTXOInput{
+			args{inputs: []iota.Serializable{
+				&iota.UTXOInput{
 					TransactionID:          [32]byte{},
 					TransactionOutputIndex: 0,
 				},
-				&iotapkg.UTXOInput{
+				&iota.UTXOInput{
 					TransactionID:          [32]byte{},
 					TransactionOutputIndex: 0,
 				},
-			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefsUniqueValidator()}}, true,
+			}, funcs: []iota.InputsValidatorFunc{iota.InputsUTXORefsUniqueValidator()}}, true,
 		},
 		{
 			"ok UTXO ref index",
-			args{inputs: []iotapkg.Serializable{
-				&iotapkg.UTXOInput{
+			args{inputs: []iota.Serializable{
+				&iota.UTXOInput{
 					TransactionID:          [32]byte{},
 					TransactionOutputIndex: 0,
 				},
-			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefIndexBoundsValidator()}}, false,
+			}, funcs: []iota.InputsValidatorFunc{iota.InputsUTXORefIndexBoundsValidator()}}, false,
 		},
 		{
 			"invalid UTXO ref index",
-			args{inputs: []iotapkg.Serializable{
-				&iotapkg.UTXOInput{
+			args{inputs: []iota.Serializable{
+				&iota.UTXOInput{
 					TransactionID:          [32]byte{},
 					TransactionOutputIndex: 250,
 				},
-			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefIndexBoundsValidator()}}, true,
+			}, funcs: []iota.InputsValidatorFunc{iota.InputsUTXORefIndexBoundsValidator()}}, true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := iotapkg.ValidateInputs(tt.args.inputs, tt.args.funcs); (err != nil) != tt.wantErr {
+			if err := iota.ValidateInputs(tt.args.inputs, tt.args.funcs); (err != nil) != tt.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

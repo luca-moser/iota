@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"bytes"
@@ -26,37 +26,37 @@ func randBytes(length int) []byte {
 	return b
 }
 
-func randWOTSAddr() (*iotapkg.WOTSAddress, []byte) {
-	wotsAddr := &iotapkg.WOTSAddress{}
-	addr := randBytes(iotapkg.WOTSAddressBytesLength)
+func randWOTSAddr() (*iota.WOTSAddress, []byte) {
+	wotsAddr := &iota.WOTSAddress{}
+	addr := randBytes(iota.WOTSAddressBytesLength)
 	copy(wotsAddr[:], addr)
-	return wotsAddr, append([]byte{iotapkg.AddressWOTS}, addr...)
+	return wotsAddr, append([]byte{iota.AddressWOTS}, addr...)
 }
 
-func randEd25519Addr() (*iotapkg.Ed25519Address, []byte) {
-	edAddr := &iotapkg.Ed25519Address{}
-	addr := randBytes(iotapkg.Ed25519AddressBytesLength)
+func randEd25519Addr() (*iota.Ed25519Address, []byte) {
+	edAddr := &iota.Ed25519Address{}
+	addr := randBytes(iota.Ed25519AddressBytesLength)
 	copy(edAddr[:], addr)
-	return edAddr, append([]byte{iotapkg.AddressEd25519}, addr...)
+	return edAddr, append([]byte{iota.AddressEd25519}, addr...)
 }
 
-func randEd25519Signature() (*iotapkg.Ed25519Signature, []byte) {
-	edSig := &iotapkg.Ed25519Signature{}
+func randEd25519Signature() (*iota.Ed25519Signature, []byte) {
+	edSig := &iota.Ed25519Signature{}
 	pub := randBytes(ed25519.PublicKeySize)
 	sig := randBytes(ed25519.SignatureSize)
 	copy(edSig.PublicKey[:], pub)
 	copy(edSig.Signature[:], sig)
-	b := append([]byte{iotapkg.SignatureEd25519}, pub...)
+	b := append([]byte{iota.SignatureEd25519}, pub...)
 	return edSig, append(b, sig...)
 }
 
-func randEd25519SignatureUnlockBlock() (*iotapkg.SignatureUnlockBlock, []byte) {
+func randEd25519SignatureUnlockBlock() (*iota.SignatureUnlockBlock, []byte) {
 	edSig, edSigData := randEd25519Signature()
-	block := &iotapkg.SignatureUnlockBlock{Signature: edSig}
-	return block, append([]byte{iotapkg.UnlockBlockSignature}, edSigData...)
+	block := &iota.SignatureUnlockBlock{Signature: edSig}
+	return block, append([]byte{iota.UnlockBlockSignature}, edSigData...)
 }
 
-func randReferenceUnlockBlock() (*iotapkg.ReferenceUnlockBlock, []byte) {
+func randReferenceUnlockBlock() (*iota.ReferenceUnlockBlock, []byte) {
 	var buf bytes.Buffer
 	index := rand.Intn(1000)
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
@@ -64,27 +64,27 @@ func randReferenceUnlockBlock() (*iotapkg.ReferenceUnlockBlock, []byte) {
 	if _, err := buf.Write(varIntBuf[:bytesWritten]); err != nil {
 		panic(err)
 	}
-	block := &iotapkg.ReferenceUnlockBlock{Reference: uint64(index)}
-	return block, append([]byte{iotapkg.UnlockBlockReference}, varIntBuf[:bytesWritten]...)
+	block := &iota.ReferenceUnlockBlock{Reference: uint64(index)}
+	return block, append([]byte{iota.UnlockBlockReference}, varIntBuf[:bytesWritten]...)
 }
 
-func referenceUnlockBlock(index uint64) (*iotapkg.ReferenceUnlockBlock, []byte) {
+func referenceUnlockBlock(index uint64) (*iota.ReferenceUnlockBlock, []byte) {
 	var buf bytes.Buffer
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 	bytesWritten := binary.PutUvarint(varIntBuf, index)
 	if _, err := buf.Write(varIntBuf[:bytesWritten]); err != nil {
 		panic(err)
 	}
-	block := &iotapkg.ReferenceUnlockBlock{Reference: uint64(index)}
-	return block, append([]byte{iotapkg.UnlockBlockReference}, varIntBuf[:bytesWritten]...)
+	block := &iota.ReferenceUnlockBlock{Reference: uint64(index)}
+	return block, append([]byte{iota.UnlockBlockReference}, varIntBuf[:bytesWritten]...)
 }
 
-func randUnsignedTransaction() (*iotapkg.UnsignedTransaction, []byte) {
+func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
 	var buf bytes.Buffer
-	tx := &iotapkg.UnsignedTransaction{}
-	must(buf.WriteByte(iotapkg.TransactionUnsigned))
+	tx := &iota.UnsignedTransaction{}
+	must(buf.WriteByte(iota.TransactionUnsigned))
 
-	inputsBytes := iotapkg.LexicalOrderedByteSlices{}
+	inputsBytes := iota.LexicalOrderedByteSlices{}
 	inputCount := rand.Intn(10) + 1
 	must(buf.WriteByte(byte(inputCount)))
 	for i := inputCount; i > 0; i-- {
@@ -96,18 +96,18 @@ func randUnsignedTransaction() (*iotapkg.UnsignedTransaction, []byte) {
 	for _, inputData := range inputsBytes {
 		_, err := buf.Write(inputData)
 		must(err)
-		input := &iotapkg.UTXOInput{}
+		input := &iota.UTXOInput{}
 		if _, err := input.Deserialize(inputData); err != nil {
 			panic(err)
 		}
 		tx.Inputs = append(tx.Inputs, input)
 	}
 
-	outputsBytes := iotapkg.LexicalOrderedByteSlices{}
+	outputsBytes := iota.LexicalOrderedByteSlices{}
 	outputCount := rand.Intn(10) + 1
 	must(buf.WriteByte(byte(outputCount)))
 	for i := outputCount; i > 0; i-- {
-		_, depData := randSigLockedSingleDeposit(iotapkg.AddressEd25519)
+		_, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
 		outputsBytes = append(outputsBytes, depData)
 	}
 
@@ -115,7 +115,7 @@ func randUnsignedTransaction() (*iotapkg.UnsignedTransaction, []byte) {
 	for _, outputData := range outputsBytes {
 		_, err := buf.Write(outputData)
 		must(err)
-		output := &iotapkg.SigLockedSingleDeposit{}
+		output := &iota.SigLockedSingleDeposit{}
 		if _, err := output.Deserialize(outputData); err != nil {
 			panic(err)
 		}
@@ -128,10 +128,10 @@ func randUnsignedTransaction() (*iotapkg.UnsignedTransaction, []byte) {
 	return tx, buf.Bytes()
 }
 
-func randSignedTransactionPayload() (*iotapkg.SignedTransactionPayload, []byte) {
+func randSignedTransactionPayload() (*iota.SignedTransactionPayload, []byte) {
 	var buf bytes.Buffer
-	sigTxPayload := &iotapkg.SignedTransactionPayload{}
-	must(buf.WriteByte(iotapkg.SignedTransactionPayloadID))
+	sigTxPayload := &iota.SignedTransactionPayload{}
+	must(buf.WriteByte(iota.SignedTransactionPayloadID))
 
 	unTx, unTxData := randUnsignedTransaction()
 	_, err := buf.Write(unTxData)
@@ -150,17 +150,17 @@ func randSignedTransactionPayload() (*iotapkg.SignedTransactionPayload, []byte) 
 	return sigTxPayload, buf.Bytes()
 }
 
-func randUTXOInput() (*iotapkg.UTXOInput, []byte) {
-	utxoInput := &iotapkg.UTXOInput{}
+func randUTXOInput() (*iota.UTXOInput, []byte) {
+	utxoInput := &iota.UTXOInput{}
 	var buf bytes.Buffer
-	must(buf.WriteByte(iotapkg.InputUTXO))
+	must(buf.WriteByte(iota.InputUTXO))
 
-	txID := randBytes(iotapkg.TransactionIDLength)
+	txID := randBytes(iota.TransactionIDLength)
 	_, err := buf.Write(txID)
 	must(err)
 	copy(utxoInput.TransactionID[:], txID)
 
-	index := rand.Intn(iotapkg.RefUTXOIndexMax)
+	index := rand.Intn(iota.RefUTXOIndexMax)
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 	bytesWritten := binary.PutUvarint(varIntBuf, uint64(index))
 	if _, err := buf.Write(varIntBuf[:bytesWritten]); err != nil {
@@ -170,17 +170,17 @@ func randUTXOInput() (*iotapkg.UTXOInput, []byte) {
 	return utxoInput, buf.Bytes()
 }
 
-func randSigLockedSingleDeposit(addrType iotapkg.AddressType) (*iotapkg.SigLockedSingleDeposit, []byte) {
+func randSigLockedSingleDeposit(addrType iota.AddressType) (*iota.SigLockedSingleDeposit, []byte) {
 	var buf bytes.Buffer
-	must(buf.WriteByte(iotapkg.OutputSigLockedSingleDeposit))
+	must(buf.WriteByte(iota.OutputSigLockedSingleDeposit))
 
-	dep := &iotapkg.SigLockedSingleDeposit{}
+	dep := &iota.SigLockedSingleDeposit{}
 
 	var addrData []byte
 	switch addrType {
-	case iotapkg.AddressWOTS:
+	case iota.AddressWOTS:
 		dep.Address, addrData = randWOTSAddr()
-	case iotapkg.AddressEd25519:
+	case iota.AddressEd25519:
 		dep.Address, addrData = randEd25519Addr()
 	default:
 		panic(fmt.Sprintf("invalid addr type: %d", addrType))
@@ -196,22 +196,22 @@ func randSigLockedSingleDeposit(addrType iotapkg.AddressType) (*iotapkg.SigLocke
 	return dep, buf.Bytes()
 }
 
-func oneInputOutputSignedTransactionPayload() *iotapkg.SignedTransactionPayload {
-	return &iotapkg.SignedTransactionPayload{
-		Transaction: &iotapkg.UnsignedTransaction{
-			Inputs: []iotapkg.Serializable{
-				&iotapkg.UTXOInput{
-					TransactionID: func() [iotapkg.TransactionIDLength]byte {
-						var b [iotapkg.TransactionIDLength]byte
-						copy(b[:], randBytes(iotapkg.TransactionIDLength))
+func oneInputOutputSignedTransactionPayload() *iota.SignedTransactionPayload {
+	return &iota.SignedTransactionPayload{
+		Transaction: &iota.UnsignedTransaction{
+			Inputs: []iota.Serializable{
+				&iota.UTXOInput{
+					TransactionID: func() [iota.TransactionIDLength]byte {
+						var b [iota.TransactionIDLength]byte
+						copy(b[:], randBytes(iota.TransactionIDLength))
 						return b
 					}(),
 					TransactionOutputIndex: 0,
 				},
 			},
-			Outputs: []iotapkg.Serializable{
-				&iotapkg.SigLockedSingleDeposit{
-					Address: func() iotapkg.Serializable {
+			Outputs: []iota.Serializable{
+				&iota.SigLockedSingleDeposit{
+					Address: func() iota.Serializable {
 						edAddr, _ := randEd25519Addr()
 						return edAddr
 					}(),
@@ -220,9 +220,9 @@ func oneInputOutputSignedTransactionPayload() *iotapkg.SignedTransactionPayload 
 			},
 			Payload: nil,
 		},
-		UnlockBlocks: []iotapkg.Serializable{
-			&iotapkg.SignatureUnlockBlock{
-				Signature: func() iotapkg.Serializable {
+		UnlockBlocks: []iota.Serializable{
+			&iota.SignatureUnlockBlock{
+				Signature: func() iota.Serializable {
 					edSig, _ := randEd25519Signature()
 					return edSig
 				}(),

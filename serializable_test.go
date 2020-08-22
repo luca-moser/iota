@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"bytes"
@@ -21,8 +21,8 @@ var (
 	ErrUnknownDummyType = errors.New("unknown example type")
 )
 
-func DummyTypeSelector(typeByte byte) (iotapkg.Serializable, error) {
-	var seri iotapkg.Serializable
+func DummyTypeSelector(typeByte byte) (iota.Serializable, error) {
+	var seri iota.Serializable
 	switch typeByte {
 	case TypeA:
 		seri = &A{}
@@ -39,15 +39,15 @@ type A struct {
 }
 
 func (a *A) Deserialize(data []byte) (int, error) {
-	data = data[iotapkg.OneByte:]
+	data = data[iota.OneByte:]
 	copy(a.Key[:], data[:aKeyLength])
-	return iotapkg.OneByte + aKeyLength, nil
+	return iota.OneByte + aKeyLength, nil
 }
 
 func (a *A) Serialize() ([]byte, error) {
-	var bytes [iotapkg.OneByte + aKeyLength]byte
+	var bytes [iota.OneByte + aKeyLength]byte
 	bytes[0] = TypeA
-	copy(bytes[iotapkg.OneByte:], a.Key[:])
+	copy(bytes[iota.OneByte:], a.Key[:])
 	return bytes[:], nil
 }
 
@@ -67,15 +67,15 @@ type B struct {
 }
 
 func (b *B) Deserialize(data []byte) (int, error) {
-	data = data[iotapkg.OneByte:]
+	data = data[iota.OneByte:]
 	copy(b.Name[:], data[:bNameLength])
-	return iotapkg.OneByte + bNameLength, nil
+	return iota.OneByte + bNameLength, nil
 }
 
 func (b *B) Serialize() ([]byte, error) {
-	var bytes [iotapkg.OneByte + bNameLength]byte
+	var bytes [iota.OneByte + bNameLength]byte
 	bytes[0] = TypeB
-	copy(bytes[iotapkg.OneByte:], b.Name[:])
+	copy(bytes[iota.OneByte:], b.Name[:])
 	return bytes[:], nil
 }
 
@@ -96,21 +96,21 @@ func TestDeserializeA(t *testing.T) {
 	bytesRead, err := objA.Deserialize(seriA)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
-	assert.Equal(t, seriA[iotapkg.OneByte:], objA.Key[:])
+	assert.Equal(t, seriA[iota.OneByte:], objA.Key[:])
 }
 
 func TestDeserializeObject(t *testing.T) {
 	seriA := randSerializedA()
-	objA, bytesRead, err := iotapkg.DeserializeObject(seriA, DummyTypeSelector)
+	objA, bytesRead, err := iota.DeserializeObject(seriA, DummyTypeSelector)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
 	assert.IsType(t, &A{}, objA)
-	assert.Equal(t, seriA[iotapkg.OneByte:], objA.(*A).Key[:])
+	assert.Equal(t, seriA[iota.OneByte:], objA.(*A).Key[:])
 }
 
 func TestDeserializeArrayOfObjects(t *testing.T) {
 	var buf bytes.Buffer
-	originObjs := []iotapkg.Serializable{
+	originObjs := []iota.Serializable{
 		randA(), randA(), randB(), randA(), randB(), randB(),
 	}
 	assert.NoError(t, buf.WriteByte(byte(len(originObjs))))
@@ -124,7 +124,7 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	seris, serisByteRead, err := iotapkg.DeserializeArrayOfObjects(data, DummyTypeSelector, nil)
+	seris, serisByteRead, err := iota.DeserializeArrayOfObjects(data, DummyTypeSelector, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(data), serisByteRead)
 	assert.EqualValues(t, originObjs, seris)
@@ -133,18 +133,18 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 func TestLexicalOrderedByteSlices(t *testing.T) {
 	type test struct {
 		name   string
-		source iotapkg.LexicalOrderedByteSlices
-		target iotapkg.LexicalOrderedByteSlices
+		source iota.LexicalOrderedByteSlices
+		target iota.LexicalOrderedByteSlices
 	}
 	tests := []test{
 		{
 			name: "ok",
-			source: iotapkg.LexicalOrderedByteSlices{
+			source: iota.LexicalOrderedByteSlices{
 				{3, 2, 1},
 				{2, 3, 1},
 				{1, 2, 3},
 			},
-			target: iotapkg.LexicalOrderedByteSlices{
+			target: iota.LexicalOrderedByteSlices{
 				{1, 2, 3},
 				{2, 3, 1},
 				{3, 2, 1},
@@ -152,12 +152,12 @@ func TestLexicalOrderedByteSlices(t *testing.T) {
 		},
 		{
 			name: "ok",
-			source: iotapkg.LexicalOrderedByteSlices{
+			source: iota.LexicalOrderedByteSlices{
 				{1, 1, 3},
 				{1, 1, 2},
 				{1, 1, 1},
 			},
-			target: iotapkg.LexicalOrderedByteSlices{
+			target: iota.LexicalOrderedByteSlices{
 				{1, 1, 1},
 				{1, 1, 2},
 				{1, 1, 3},

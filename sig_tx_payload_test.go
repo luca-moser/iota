@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ func TestSignedTransactionPayload_Deserialize(t *testing.T) {
 	type test struct {
 		name   string
 		source []byte
-		target iotapkg.Serializable
+		target iota.Serializable
 		err    error
 	}
 	tests := []test{
@@ -24,7 +24,7 @@ func TestSignedTransactionPayload_Deserialize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tx := &iotapkg.SignedTransactionPayload{}
+			tx := &iota.SignedTransactionPayload{}
 			bytesRead, err := tx.Deserialize(tt.source)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
@@ -40,7 +40,7 @@ func TestSignedTransactionPayload_Deserialize(t *testing.T) {
 func TestSignedTransactionPayload_Serialize(t *testing.T) {
 	type test struct {
 		name   string
-		source *iotapkg.SignedTransactionPayload
+		source *iota.SignedTransactionPayload
 		target []byte
 	}
 	tests := []test{

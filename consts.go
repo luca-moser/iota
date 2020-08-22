@@ -1,4 +1,4 @@
-package iotapkg
+package iota
 
 const (
 	// The byte size of a single byte.

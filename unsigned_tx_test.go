@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"errors"
@@ -9,15 +9,15 @@ import (
 )
 
 func TestTransactionSelector(t *testing.T) {
-	_, err := iotapkg.TransactionSelector(100)
-	assert.True(t, errors.Is(err, iotapkg.ErrUnknownTransactionType))
+	_, err := iota.TransactionSelector(100)
+	assert.True(t, errors.Is(err, iota.ErrUnknownTransactionType))
 }
 
 func TestUnsignedTransaction_Deserialize(t *testing.T) {
 	type test struct {
 		name   string
 		source []byte
-		target iotapkg.Serializable
+		target iota.Serializable
 		err    error
 	}
 	tests := []test{
@@ -29,7 +29,7 @@ func TestUnsignedTransaction_Deserialize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tx := &iotapkg.UnsignedTransaction{}
+			tx := &iota.UnsignedTransaction{}
 			bytesRead, err := tx.Deserialize(tt.source)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
@@ -45,7 +45,7 @@ func TestUnsignedTransaction_Deserialize(t *testing.T) {
 func TestUnsignedTransaction_Serialize(t *testing.T) {
 	type test struct {
 		name   string
-		source *iotapkg.UnsignedTransaction
+		source *iota.UnsignedTransaction
 		target []byte
 	}
 	tests := []test{

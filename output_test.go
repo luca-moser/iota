@@ -1,4 +1,4 @@
-package iotapkg_test
+package iota_test
 
 import (
 	"errors"
@@ -9,43 +9,43 @@ import (
 )
 
 func TestOutputSelector(t *testing.T) {
-	_, err := iotapkg.OutputSelector(100)
-	assert.True(t, errors.Is(err, iotapkg.ErrUnknownOutputType))
+	_, err := iota.OutputSelector(100)
+	assert.True(t, errors.Is(err, iota.ErrUnknownOutputType))
 }
 
 func TestSigLockedSingleDeposit_Deserialize(t *testing.T) {
 	type test struct {
 		name   string
 		source []byte
-		target iotapkg.Serializable
+		target iota.Serializable
 		err    error
 	}
 	tests := []test{
 		func() test {
-			dep, depData := randSigLockedSingleDeposit(iotapkg.AddressWOTS)
+			dep, depData := randSigLockedSingleDeposit(iota.AddressWOTS)
 			return test{"ok wots", depData, dep, nil}
 		}(),
 		func() test {
-			dep, depData := randSigLockedSingleDeposit(iotapkg.AddressWOTS)
-			return test{"not enough data wots", depData[:5], dep, iotapkg.ErrInvalidBytes}
+			dep, depData := randSigLockedSingleDeposit(iota.AddressWOTS)
+			return test{"not enough data wots", depData[:5], dep, iota.ErrInvalidBytes}
 		}(),
 		func() test {
-			dep, depData := randSigLockedSingleDeposit(iotapkg.AddressEd25519)
+			dep, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
 			return test{"ok ed25519", depData, dep, nil}
 		}(),
 		func() test {
-			dep, depData := randSigLockedSingleDeposit(iotapkg.AddressEd25519)
-			return test{"not enough data ed25519", depData[:5], dep, iotapkg.ErrInvalidBytes}
+			dep, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
+			return test{"not enough data ed25519", depData[:5], dep, iota.ErrInvalidBytes}
 		}(),
 		func() test {
-			dep, depData := randSigLockedSingleDeposit(iotapkg.AddressEd25519)
-			depData[iotapkg.SigLockedSingleDepositAddressOffset] = 100
-			return test{"unknown addr type", depData, dep, iotapkg.ErrUnknownAddrType}
+			dep, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
+			depData[iota.SigLockedSingleDepositAddressOffset] = 100
+			return test{"unknown addr type", depData, dep, iota.ErrUnknownAddrType}
 		}(),
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dep := &iotapkg.SigLockedSingleDeposit{}
+			dep := &iota.SigLockedSingleDeposit{}
 			bytesRead, err := dep.Deserialize(tt.source)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
@@ -61,13 +61,13 @@ func TestSigLockedSingleDeposit_Deserialize(t *testing.T) {
 func TestSigLockedSingleDeposit_Serialize(t *testing.T) {
 	type test struct {
 		name   string
-		source *iotapkg.SigLockedSingleDeposit
+		source *iota.SigLockedSingleDeposit
 		target []byte
 		err    error
 	}
 	tests := []test{
 		func() test {
-			dep, depData := randSigLockedSingleDeposit(iotapkg.AddressEd25519)
+			dep, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
 			return test{"ok", dep, depData, nil}
 		}(),
 	}
@@ -85,8 +85,8 @@ func TestSigLockedSingleDeposit_Serialize(t *testing.T) {
 
 func TestOutputsValidatorFunc(t *testing.T) {
 	type args struct {
-		outputs iotapkg.Serializables
-		funcs   []iotapkg.OutputsValidatorFunc
+		outputs iota.Serializables
+		funcs   []iota.OutputsValidatorFunc
 	}
 	tests := []struct {
 		name    string
@@ -96,28 +96,28 @@ func TestOutputsValidatorFunc(t *testing.T) {
 		// TODO: Add test cases.
 		{
 			"ok addr",
-			args{outputs: []iotapkg.Serializable{
-				&iotapkg.SigLockedSingleDeposit{
-					Address: func() iotapkg.Serializable {
+			args{outputs: []iota.Serializable{
+				&iota.SigLockedSingleDeposit{
+					Address: func() iota.Serializable {
 						addr, _ := randEd25519Addr()
 						return addr
 					}(),
 					Amount: 0,
 				},
-				&iotapkg.SigLockedSingleDeposit{
-					Address: func() iotapkg.Serializable {
+				&iota.SigLockedSingleDeposit{
+					Address: func() iota.Serializable {
 						addr, _ := randEd25519Addr()
 						return addr
 					}(),
 					Amount: 0,
 				},
-			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsAddrUniqueValidator()}}, false,
+			}, funcs: []iota.OutputsValidatorFunc{iota.OutputsAddrUniqueValidator()}}, false,
 		},
 		{
 			"addr not unique",
-			args{outputs: []iotapkg.Serializable{
-				&iotapkg.SigLockedSingleDeposit{
-					Address: func() iotapkg.Serializable {
+			args{outputs: []iota.Serializable{
+				&iota.SigLockedSingleDeposit{
+					Address: func() iota.Serializable {
 						addr, _ := randEd25519Addr()
 						for i := 0; i < len(addr); i++ {
 							addr[i] = 3
@@ -126,8 +126,8 @@ func TestOutputsValidatorFunc(t *testing.T) {
 					}(),
 					Amount: 0,
 				},
-				&iotapkg.SigLockedSingleDeposit{
-					Address: func() iotapkg.Serializable {
+				&iota.SigLockedSingleDeposit{
+					Address: func() iota.Serializable {
 						addr, _ := randEd25519Addr()
 						for i := 0; i < len(addr); i++ {
 							addr[i] = 3
@@ -136,43 +136,43 @@ func TestOutputsValidatorFunc(t *testing.T) {
 					}(),
 					Amount: 0,
 				},
-			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsAddrUniqueValidator()}}, true,
+			}, funcs: []iota.OutputsValidatorFunc{iota.OutputsAddrUniqueValidator()}}, true,
 		},
 		{
 			"ok amount",
-			args{outputs: []iotapkg.Serializable{
-				&iotapkg.SigLockedSingleDeposit{
+			args{outputs: []iota.Serializable{
+				&iota.SigLockedSingleDeposit{
 					Address: nil,
-					Amount:  iotapkg.TokenSupply,
+					Amount:  iota.TokenSupply,
 				},
-			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsDepositAmountValidator()}}, false,
+			}, funcs: []iota.OutputsValidatorFunc{iota.OutputsDepositAmountValidator()}}, false,
 		},
 		{
 			"spends more than total supply",
-			args{outputs: []iotapkg.Serializable{
-				&iotapkg.SigLockedSingleDeposit{
+			args{outputs: []iota.Serializable{
+				&iota.SigLockedSingleDeposit{
 					Address: nil,
-					Amount:  iotapkg.TokenSupply + 1,
+					Amount:  iota.TokenSupply + 1,
 				},
-			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsDepositAmountValidator()}}, true,
+			}, funcs: []iota.OutputsValidatorFunc{iota.OutputsDepositAmountValidator()}}, true,
 		},
 		{
 			"sum more than total supply",
-			args{outputs: []iotapkg.Serializable{
-				&iotapkg.SigLockedSingleDeposit{
+			args{outputs: []iota.Serializable{
+				&iota.SigLockedSingleDeposit{
 					Address: nil,
-					Amount:  iotapkg.TokenSupply - 1,
+					Amount:  iota.TokenSupply - 1,
 				},
-				&iotapkg.SigLockedSingleDeposit{
+				&iota.SigLockedSingleDeposit{
 					Address: nil,
-					Amount:  iotapkg.TokenSupply - 1,
+					Amount:  iota.TokenSupply - 1,
 				},
-			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsDepositAmountValidator()}}, true,
+			}, funcs: []iota.OutputsValidatorFunc{iota.OutputsDepositAmountValidator()}}, true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := iotapkg.ValidateOutputs(tt.args.outputs, tt.args.funcs); (err != nil) != tt.wantErr {
+			if err := iota.ValidateOutputs(tt.args.outputs, tt.args.funcs); (err != nil) != tt.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
