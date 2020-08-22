@@ -59,3 +59,67 @@ func TestUTXOInput_Serialize(t *testing.T) {
 		})
 	}
 }
+
+func TestInputsValidatorFunc(t *testing.T) {
+	type args struct {
+		inputs []iotapkg.Serializable
+		funcs  []iotapkg.InputsValidatorFunc
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			"ok addr",
+			args{inputs: []iotapkg.Serializable{
+				&iotapkg.UTXOInput{
+					TransactionID:          [32]byte{},
+					TransactionOutputIndex: 0,
+				},
+				&iotapkg.UTXOInput{
+					TransactionID:          [32]byte{},
+					TransactionOutputIndex: 1,
+				},
+			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefsUniqueValidator()}}, false,
+		},
+		{
+			"addr not unique",
+			args{inputs: []iotapkg.Serializable{
+				&iotapkg.UTXOInput{
+					TransactionID:          [32]byte{},
+					TransactionOutputIndex: 0,
+				},
+				&iotapkg.UTXOInput{
+					TransactionID:          [32]byte{},
+					TransactionOutputIndex: 0,
+				},
+			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefsUniqueValidator()}}, true,
+		},
+		{
+			"ok UTXO ref index",
+			args{inputs: []iotapkg.Serializable{
+				&iotapkg.UTXOInput{
+					TransactionID:          [32]byte{},
+					TransactionOutputIndex: 0,
+				},
+			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefIndexBoundsValidator()}}, false,
+		},
+		{
+			"invalid UTXO ref index",
+			args{inputs: []iotapkg.Serializable{
+				&iotapkg.UTXOInput{
+					TransactionID:          [32]byte{},
+					TransactionOutputIndex: 250,
+				},
+			}, funcs: []iotapkg.InputsValidatorFunc{iotapkg.InputsUTXORefIndexBoundsValidator()}}, true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := iotapkg.ValidateInputs(tt.args.inputs, tt.args.funcs); (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

@@ -19,4 +19,7 @@ const (
 	UInt64ByteSize = 8
 	// The byte size of a float64.
 	Float64ByteSize = 8
+
+	// The IOTA token supply.
+	TokenSupply = 2_779_530_283_277_761
 )

@@ -116,3 +116,72 @@ func TestUnlockBlockReference_Serialize(t *testing.T) {
 		})
 	}
 }
+
+func TestUnlockBlockValidatorFunc(t *testing.T) {
+	type args struct {
+		inputs []iotapkg.Serializable
+		funcs  []iotapkg.UnlockBlockValidatorFunc
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			"ok",
+			args{inputs: []iotapkg.Serializable{
+				func() iotapkg.Serializable {
+					block, _ := randEd25519SignatureUnlockBlock()
+					return block
+				}(),
+				func() iotapkg.Serializable {
+					block, _ := randEd25519SignatureUnlockBlock()
+					return block
+				}(),
+				func() iotapkg.Serializable {
+					return &iotapkg.ReferenceUnlockBlock{Reference: 0}
+				}(),
+			}, funcs: []iotapkg.UnlockBlockValidatorFunc{iotapkg.UnlockBlocksSigUniqueAndRefValidator()}}, false,
+		},
+		{
+			"duplicate ed25519 sig block",
+			args{inputs: []iotapkg.Serializable{
+				func() iotapkg.Serializable {
+					return &iotapkg.SignatureUnlockBlock{Signature: &iotapkg.Ed25519Signature{
+						PublicKey: [32]byte{},
+						Signature: [64]byte{},
+					}}
+				}(),
+				func() iotapkg.Serializable {
+					return &iotapkg.SignatureUnlockBlock{Signature: &iotapkg.Ed25519Signature{
+						PublicKey: [32]byte{},
+						Signature: [64]byte{},
+					}}
+				}(),
+			}, funcs: []iotapkg.UnlockBlockValidatorFunc{iotapkg.UnlockBlocksSigUniqueAndRefValidator()}}, true,
+		},
+		{
+			"invalid ref",
+			args{inputs: []iotapkg.Serializable{
+				func() iotapkg.Serializable {
+					block, _ := randEd25519SignatureUnlockBlock()
+					return block
+				}(),
+				func() iotapkg.Serializable {
+					block, _ := randEd25519SignatureUnlockBlock()
+					return block
+				}(),
+				func() iotapkg.Serializable {
+					return &iotapkg.ReferenceUnlockBlock{Reference: 2}
+				}(),
+			}, funcs: []iotapkg.UnlockBlockValidatorFunc{iotapkg.UnlockBlocksSigUniqueAndRefValidator()}}, true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := iotapkg.ValidateUnlockBlocks(tt.args.inputs, tt.args.funcs); (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

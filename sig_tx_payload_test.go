@@ -59,47 +59,27 @@ func TestSignedTransactionPayload_Serialize(t *testing.T) {
 }
 
 func BenchmarkDeserializeOneInputOutputSignedTransactionPayload(b *testing.B) {
-	sigTxPayload := &iotapkg.SignedTransactionPayload{
-		Transaction: &iotapkg.UnsignedTransaction{
-			Inputs: []iotapkg.Serializable{
-				&iotapkg.UTXOInput{
-					TransactionID: func() [iotapkg.TransactionIDLength]byte {
-						var b [iotapkg.TransactionIDLength]byte
-						copy(b[:], randBytes(iotapkg.TransactionIDLength))
-						return b
-					}(),
-					TransactionOutputIndex: 0,
-				},
-			},
-			Outputs: []iotapkg.Serializable{
-				&iotapkg.SigLockedSingleDeposit{
-					Address: func() iotapkg.Serializable {
-						edAddr, _ := randEd25519Addr()
-						return edAddr
-					}(),
-					Amount: 1337,
-				},
-			},
-			Payload: nil,
-		},
-		UnlockBlocks: []iotapkg.Serializable{
-			&iotapkg.SignatureUnlockBlock{
-				Signature: func() iotapkg.Serializable {
-					edSig, _ := randEd25519Signature()
-					return edSig
-				}(),
-			},
-		},
-	}
-
-	data, err := sigTxPayload.Serialize()
+	data, err := oneInputOutputSignedTransactionPayload().Serialize()
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	target := &iotapkg.SignedTransactionPayload{}
+	_, err = target.Deserialize(data)
+	if err != nil {
+		b.Fatal(err)
+	}
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		target.Deserialize(data)
+	}
+}
+
+func BenchmarkSerializeOneInputOutputSignedTransactionPayload(b *testing.B) {
+	sigTxPayload := oneInputOutputSignedTransactionPayload()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sigTxPayload.Serialize()
 	}
 }

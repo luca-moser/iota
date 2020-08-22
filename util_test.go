@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand"
+	"sort"
 
 	"github.com/luca-moser/iotapkg"
 )
@@ -83,22 +84,42 @@ func randUnsignedTransaction() (*iotapkg.UnsignedTransaction, []byte) {
 	tx := &iotapkg.UnsignedTransaction{}
 	must(buf.WriteByte(iotapkg.TransactionUnsigned))
 
+	inputsBytes := iotapkg.LexicalOrderedByteSlices{}
 	inputCount := rand.Intn(10) + 1
 	must(buf.WriteByte(byte(inputCount)))
 	for i := inputCount; i > 0; i-- {
-		input, inputData := randUTXOInput()
+		_, inputData := randUTXOInput()
+		inputsBytes = append(inputsBytes, inputData)
+	}
+
+	sort.Sort(inputsBytes)
+	for _, inputData := range inputsBytes {
 		_, err := buf.Write(inputData)
 		must(err)
+		input := &iotapkg.UTXOInput{}
+		if _, err := input.Deserialize(inputData); err != nil {
+			panic(err)
+		}
 		tx.Inputs = append(tx.Inputs, input)
 	}
 
+	outputsBytes := iotapkg.LexicalOrderedByteSlices{}
 	outputCount := rand.Intn(10) + 1
 	must(buf.WriteByte(byte(outputCount)))
 	for i := outputCount; i > 0; i-- {
-		dep, depData := randSigLockedSingleDeposit(iotapkg.AddressEd25519)
-		_, err := buf.Write(depData)
+		_, depData := randSigLockedSingleDeposit(iotapkg.AddressEd25519)
+		outputsBytes = append(outputsBytes, depData)
+	}
+
+	sort.Sort(outputsBytes)
+	for _, outputData := range outputsBytes {
+		_, err := buf.Write(outputData)
 		must(err)
-		tx.Outputs = append(tx.Outputs, dep)
+		output := &iotapkg.SigLockedSingleDeposit{}
+		if _, err := output.Deserialize(outputData); err != nil {
+			panic(err)
+		}
+		tx.Outputs = append(tx.Outputs, output)
 	}
 
 	// empty payload
@@ -117,19 +138,10 @@ func randSignedTransactionPayload() (*iotapkg.SignedTransactionPayload, []byte) 
 	must(err)
 	sigTxPayload.Transaction = unTx
 
-	unlockBlocksCount := rand.Intn(10) + 1
+	unlockBlocksCount := len(unTx.Inputs)
 	must(buf.WriteByte(byte(unlockBlocksCount)))
 	for i := unlockBlocksCount; i > 0; i-- {
-		var unlockBlock iotapkg.Serializable
-		var unlockBlockData []byte
-		switch rand.Intn(2) {
-		case 0:
-			unlockBlock, unlockBlockData = randEd25519SignatureUnlockBlock()
-		case 1:
-			unlockBlock, unlockBlockData = randReferenceUnlockBlock()
-		default:
-			panic("not all rands covered")
-		}
+		unlockBlock, unlockBlockData := randEd25519SignatureUnlockBlock()
 		_, err := buf.Write(unlockBlockData)
 		must(err)
 		sigTxPayload.UnlockBlocks = append(sigTxPayload.UnlockBlocks, unlockBlock)
@@ -148,13 +160,13 @@ func randUTXOInput() (*iotapkg.UTXOInput, []byte) {
 	must(err)
 	copy(utxoInput.TransactionID[:], txID)
 
-	index := rand.Intn(1000)
+	index := rand.Intn(iotapkg.RefUTXOIndexMax)
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 	bytesWritten := binary.PutUvarint(varIntBuf, uint64(index))
 	if _, err := buf.Write(varIntBuf[:bytesWritten]); err != nil {
 		panic(err)
 	}
-	utxoInput.TransactionOutputIndex = uint16(index)
+	utxoInput.TransactionOutputIndex = byte(index)
 	return utxoInput, buf.Bytes()
 }
 
@@ -182,4 +194,39 @@ func randSigLockedSingleDeposit(addrType iotapkg.AddressType) (*iotapkg.SigLocke
 	dep.Amount = amount
 
 	return dep, buf.Bytes()
+}
+
+func oneInputOutputSignedTransactionPayload() *iotapkg.SignedTransactionPayload {
+	return &iotapkg.SignedTransactionPayload{
+		Transaction: &iotapkg.UnsignedTransaction{
+			Inputs: []iotapkg.Serializable{
+				&iotapkg.UTXOInput{
+					TransactionID: func() [iotapkg.TransactionIDLength]byte {
+						var b [iotapkg.TransactionIDLength]byte
+						copy(b[:], randBytes(iotapkg.TransactionIDLength))
+						return b
+					}(),
+					TransactionOutputIndex: 0,
+				},
+			},
+			Outputs: []iotapkg.Serializable{
+				&iotapkg.SigLockedSingleDeposit{
+					Address: func() iotapkg.Serializable {
+						edAddr, _ := randEd25519Addr()
+						return edAddr
+					}(),
+					Amount: 1337,
+				},
+			},
+			Payload: nil,
+		},
+		UnlockBlocks: []iotapkg.Serializable{
+			&iotapkg.SignatureUnlockBlock{
+				Signature: func() iotapkg.Serializable {
+					edSig, _ := randEd25519Signature()
+					return edSig
+				}(),
+			},
+		},
+	}
 }

@@ -39,6 +39,9 @@ func (w *WOTSSignature) Serialize() ([]byte, error) {
 }
 
 func (w *WOTSSignature) Deserialize(data []byte) (int, error) {
+	if err := checkType(data, SignatureWOTS); err != nil {
+		return 0, fmt.Errorf("unable to deserialize WOTS signature: %w", err)
+	}
 	panic("implement me")
 }
 
@@ -48,6 +51,9 @@ type Ed25519Signature struct {
 }
 
 func (e *Ed25519Signature) Deserialize(data []byte) (int, error) {
+	if err := checkType(data, SignatureEd25519); err != nil {
+		return 0, fmt.Errorf("unable to deserialize Ed25519 signature: %w", err)
+	}
 	if err := checkMinByteLength(Ed25519SignatureSerializedBytesSize, len(data)); err != nil {
 		return 0, err
 	}

@@ -3,6 +3,7 @@ package iotapkg_test
 import (
 	"bytes"
 	"errors"
+	"sort"
 	"testing"
 
 	"github.com/luca-moser/iotapkg"
@@ -123,8 +124,51 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	seris, serisByteRead, err := iotapkg.DeserializeArrayOfObjects(data, DummyTypeSelector)
+	seris, serisByteRead, err := iotapkg.DeserializeArrayOfObjects(data, DummyTypeSelector, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(data), serisByteRead)
 	assert.EqualValues(t, originObjs, seris)
+}
+
+func TestLexicalOrderedByteSlices(t *testing.T) {
+	type test struct {
+		name   string
+		source iotapkg.LexicalOrderedByteSlices
+		target iotapkg.LexicalOrderedByteSlices
+	}
+	tests := []test{
+		{
+			name: "ok",
+			source: iotapkg.LexicalOrderedByteSlices{
+				{3, 2, 1},
+				{2, 3, 1},
+				{1, 2, 3},
+			},
+			target: iotapkg.LexicalOrderedByteSlices{
+				{1, 2, 3},
+				{2, 3, 1},
+				{3, 2, 1},
+			},
+		},
+		{
+			name: "ok",
+			source: iotapkg.LexicalOrderedByteSlices{
+				{1, 1, 3},
+				{1, 1, 2},
+				{1, 1, 1},
+			},
+			target: iotapkg.LexicalOrderedByteSlices{
+				{1, 1, 1},
+				{1, 1, 2},
+				{1, 1, 3},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sort.Sort(tt.source)
+			assert.Equal(t, tt.target, tt.source)
+		})
+	}
 }

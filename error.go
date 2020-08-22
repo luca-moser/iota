@@ -7,6 +7,7 @@ import (
 
 var (
 	ErrInvalidBytes                = errors.New("invalid bytes")
+	ErrDeserializationTypeMismatch = errors.New("data type is invalid for deserialization")
 	ErrUnknownAddrType             = errors.New("unknown address type")
 	ErrUnknownInputType            = errors.New("unknown input type")
 	ErrUnknownOutputType           = errors.New("unknown output type")
@@ -15,6 +16,16 @@ var (
 	ErrUnknownSignatureType        = errors.New("unknown signature type")
 	ErrDeserializationDataTooSmall = errors.New("not enough data for deserialization")
 )
+
+func checkType(data []byte, should byte) error {
+	if data == nil || len(data) == 0 {
+		return fmt.Errorf("%w: can not evaluate type", ErrDeserializationDataTooSmall)
+	}
+	if data[0] != should {
+		return fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, should, data[0])
+	}
+	return nil
+}
 
 func checkExactByteLength(exact int, length int) error {
 	if length != exact {

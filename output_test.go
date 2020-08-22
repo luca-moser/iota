@@ -81,5 +81,100 @@ func TestSigLockedSingleDeposit_Serialize(t *testing.T) {
 			assert.EqualValues(t, tt.target, data)
 		})
 	}
+}
 
+func TestOutputsValidatorFunc(t *testing.T) {
+	type args struct {
+		outputs iotapkg.Serializables
+		funcs   []iotapkg.OutputsValidatorFunc
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+		{
+			"ok addr",
+			args{outputs: []iotapkg.Serializable{
+				&iotapkg.SigLockedSingleDeposit{
+					Address: func() iotapkg.Serializable {
+						addr, _ := randEd25519Addr()
+						return addr
+					}(),
+					Amount: 0,
+				},
+				&iotapkg.SigLockedSingleDeposit{
+					Address: func() iotapkg.Serializable {
+						addr, _ := randEd25519Addr()
+						return addr
+					}(),
+					Amount: 0,
+				},
+			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsAddrUniqueValidator()}}, false,
+		},
+		{
+			"addr not unique",
+			args{outputs: []iotapkg.Serializable{
+				&iotapkg.SigLockedSingleDeposit{
+					Address: func() iotapkg.Serializable {
+						addr, _ := randEd25519Addr()
+						for i := 0; i < len(addr); i++ {
+							addr[i] = 3
+						}
+						return addr
+					}(),
+					Amount: 0,
+				},
+				&iotapkg.SigLockedSingleDeposit{
+					Address: func() iotapkg.Serializable {
+						addr, _ := randEd25519Addr()
+						for i := 0; i < len(addr); i++ {
+							addr[i] = 3
+						}
+						return addr
+					}(),
+					Amount: 0,
+				},
+			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsAddrUniqueValidator()}}, true,
+		},
+		{
+			"ok amount",
+			args{outputs: []iotapkg.Serializable{
+				&iotapkg.SigLockedSingleDeposit{
+					Address: nil,
+					Amount:  iotapkg.TokenSupply,
+				},
+			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsDepositAmountValidator()}}, false,
+		},
+		{
+			"spends more than total supply",
+			args{outputs: []iotapkg.Serializable{
+				&iotapkg.SigLockedSingleDeposit{
+					Address: nil,
+					Amount:  iotapkg.TokenSupply + 1,
+				},
+			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsDepositAmountValidator()}}, true,
+		},
+		{
+			"sum more than total supply",
+			args{outputs: []iotapkg.Serializable{
+				&iotapkg.SigLockedSingleDeposit{
+					Address: nil,
+					Amount:  iotapkg.TokenSupply - 1,
+				},
+				&iotapkg.SigLockedSingleDeposit{
+					Address: nil,
+					Amount:  iotapkg.TokenSupply - 1,
+				},
+			}, funcs: []iotapkg.OutputsValidatorFunc{iotapkg.OutputsDepositAmountValidator()}}, true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := iotapkg.ValidateOutputs(tt.args.outputs, tt.args.funcs); (err != nil) != tt.wantErr {
+				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

@@ -3,6 +3,7 @@ package iotapkg
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -14,6 +15,12 @@ const (
 	UnlockBlockSignature UnlockBlockType = iota
 	// Denotes a reference unlock block.
 	UnlockBlockReference
+)
+
+var (
+	ErrSigUnlockBlocksNotUnique = errors.New("signature unlock blocks must be unique")
+	// TODO: might also reference something else in the future than just signature unlock blocks
+	ErrRefUnlockBlockInvalidRef = errors.New("referece unlock block must point to a previous signature unlock block")
 )
 
 // UnlockBlockSelector implements SerializableSelectorFunc for unlock block types.
@@ -36,20 +43,22 @@ type SignatureUnlockBlock struct {
 }
 
 func (s *SignatureUnlockBlock) Deserialize(data []byte) (int, error) {
-	var totalBytesRead int
+	if err := checkType(data, UnlockBlockSignature); err != nil {
+		return 0, fmt.Errorf("unable to deserialize signature unlock block: %w", err)
+	}
 
 	// skip type byte
+	bytesReadTotal := OneByte
 	data = data[OneByte:]
-	totalBytesRead += OneByte
 
 	sig, sigBytesRead, err := DeserializeObject(data, SignatureSelector)
 	if err != nil {
 		return 0, err
 	}
-	totalBytesRead += sigBytesRead
+	bytesReadTotal += sigBytesRead
 	s.Signature = sig
 
-	return totalBytesRead, nil
+	return bytesReadTotal, nil
 }
 
 func (s *SignatureUnlockBlock) Serialize() ([]byte, error) {
@@ -66,6 +75,9 @@ type ReferenceUnlockBlock struct {
 }
 
 func (r *ReferenceUnlockBlock) Deserialize(data []byte) (int, error) {
+	if err := checkType(data, UnlockBlockReference); err != nil {
+		return 0, fmt.Errorf("unable to deserialize reference unlock block: %w", err)
+	}
 	data = data[OneByte:]
 	reference, referenceByteSize, err := ReadUvarint(bytes.NewReader(data))
 	if err != nil {
@@ -79,4 +91,59 @@ func (r *ReferenceUnlockBlock) Serialize() ([]byte, error) {
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 	bytesWritten := binary.PutUvarint(varIntBuf, r.Reference)
 	return append([]byte{UnlockBlockReference}, varIntBuf[:bytesWritten]...), nil
+}
+
+// UnlockBlockValidatorFunc which given the index of an unlock block and the unlock block itself, runs validations and returns an error if any should fail.
+type UnlockBlockValidatorFunc func(index int, unlockBlock Serializable) error
+
+// UnlockBlocksSigUniqueAndRefValidator returns a validator which checks that:
+//	1. signature unlock blocks are unique
+//	2. reference unlock blocks reference a previous signature unlock block
+func UnlockBlocksSigUniqueAndRefValidator() UnlockBlockValidatorFunc {
+	seenEdPubKeys := map[string]int{}
+	seenSigBlocks := map[int]struct{}{}
+	return func(index int, unlockBlock Serializable) error {
+		switch x := unlockBlock.(type) {
+		case *SignatureUnlockBlock:
+			switch y := x.Signature.(type) {
+			case *WOTSSignature:
+				// TODO: implement
+			case *Ed25519Signature:
+				k := string(y.PublicKey[:])
+				j, has := seenEdPubKeys[k]
+				if has {
+					return fmt.Errorf("%w: unlock block %d has the same Ed25519 public key as %d", ErrSigUnlockBlocksNotUnique, index, j)
+				}
+				seenEdPubKeys[k] = index
+				seenSigBlocks[index] = struct{}{}
+			}
+		case *ReferenceUnlockBlock:
+			reference := int(x.Reference)
+			if _, has := seenSigBlocks[reference]; !has {
+				return fmt.Errorf("%w: %d references non existent unlock block %d", ErrRefUnlockBlockInvalidRef, index, reference)
+			}
+		default:
+			return fmt.Errorf("%w: %T", ErrUnknownUnlockBlockType, x)
+		}
+
+		return nil
+	}
+}
+
+// ValidateUnlockBlocks validates the unlock blocks by running them against the given UnlockBlockValidatorFunc.
+func ValidateUnlockBlocks(unlockBlocks Serializables, funcs []UnlockBlockValidatorFunc) error {
+	for i, unlockBlock := range unlockBlocks {
+		switch unlockBlock.(type) {
+		case *SignatureUnlockBlock:
+		case *ReferenceUnlockBlock:
+		default:
+			return fmt.Errorf("%w: can only validate signature or reference unlock blocks", ErrUnknownInputType)
+		}
+		for _, f := range funcs {
+			if err := f(i, unlockBlock); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

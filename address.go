@@ -42,6 +42,9 @@ func AddressSelector(typeByte byte) (Serializable, error) {
 type WOTSAddress [WOTSAddressBytesLength]byte
 
 func (wotsAddr *WOTSAddress) Deserialize(data []byte) (int, error) {
+	if err := checkType(data, AddressWOTS); err != nil {
+		return 0, fmt.Errorf("unable to deserialize WOTS address: %w", err)
+	}
 	if err := checkMinByteLength(WOTSAddressSerializedBytesSize, len(data)); err != nil {
 		return 0, fmt.Errorf("invalid WOTS address bytes: %w", err)
 	}
@@ -60,6 +63,9 @@ func (wotsAddr *WOTSAddress) Serialize() (data []byte, err error) {
 type Ed25519Address [Ed25519AddressBytesLength]byte
 
 func (edAddr *Ed25519Address) Deserialize(data []byte) (int, error) {
+	if err := checkType(data, AddressEd25519); err != nil {
+		return 0, fmt.Errorf("unable to deserialize Ed25519 address: %w", err)
+	}
 	if err := checkMinByteLength(Ed25519AddressSerializedBytesSize, len(data)); err != nil {
 		return 0, fmt.Errorf("invalid Ed25519 address bytes: %w", err)
 	}
