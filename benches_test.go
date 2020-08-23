@@ -61,8 +61,9 @@ func BenchmarkVerifyEd25519OneIOUnsignedTx(b *testing.B) {
 
 	sig := ed25519.Sign(prvKey, unsigTxData)
 
+	pubKey := prvKey.Public().(ed25519.PublicKey)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ed25519.Verify(prvKey.Public().(ed25519.PublicKey), unsigTxData, sig)
+		ed25519.Verify(pubKey, unsigTxData, sig)
 	}
 }

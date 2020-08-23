@@ -1,4 +1,4 @@
-module github.com/luca-moser/iotapkg
+module github.com/luca-moser/iota
 
 go 1.15
 
