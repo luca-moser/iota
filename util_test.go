@@ -8,7 +8,7 @@ import (
 	"math/rand"
 	"sort"
 
-	"github.com/luca-moser/iotapkg"
+	"github.com/luca-moser/iota"
 )
 
 func must(err error) {
@@ -97,7 +97,7 @@ func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
 		_, err := buf.Write(inputData)
 		must(err)
 		input := &iota.UTXOInput{}
-		if _, err := input.Deserialize(inputData); err != nil {
+		if _, err := input.Deserialize(inputData, false); err != nil {
 			panic(err)
 		}
 		tx.Inputs = append(tx.Inputs, input)
@@ -116,7 +116,7 @@ func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
 		_, err := buf.Write(outputData)
 		must(err)
 		output := &iota.SigLockedSingleDeposit{}
-		if _, err := output.Deserialize(outputData); err != nil {
+		if _, err := output.Deserialize(outputData, false); err != nil {
 			panic(err)
 		}
 		tx.Outputs = append(tx.Outputs, output)

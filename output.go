@@ -50,19 +50,21 @@ type SigLockedSingleDeposit struct {
 	Amount uint64 `json:"amount"`
 }
 
-func (s *SigLockedSingleDeposit) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, OutputSigLockedSingleDeposit); err != nil {
-		return 0, fmt.Errorf("unable to deserialize signature locked single deposit: %w", err)
-	}
+func (s *SigLockedSingleDeposit) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, OutputSigLockedSingleDeposit); err != nil {
+			return 0, fmt.Errorf("unable to deserialize signature locked single deposit: %w", err)
+		}
 
-	if err := checkMinByteLength(SigLockedSingleDepositBytesMinSize, len(data)); err != nil {
-		return 0, err
+		if err := checkMinByteLength(SigLockedSingleDepositBytesMinSize, len(data)); err != nil {
+			return 0, err
+		}
 	}
 
 	bytesReadTotal := OneByte
 	data = data[OneByte:]
 
-	addr, addrBytesRead, err := DeserializeObject(data, AddressSelector)
+	addr, addrBytesRead, err := DeserializeObject(data, skipValidation, AddressSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -75,19 +77,27 @@ func (s *SigLockedSingleDeposit) Deserialize(data []byte) (int, error) {
 		return 0, fmt.Errorf("unable to deserialize deposit amount: %w", err)
 	}
 
-	if err := outputAmountValidator(-1, s); err != nil {
-		return 0, err
+	if !skipValidation {
+		if err := outputAmountValidator(-1, s); err != nil {
+			return 0, err
+		}
 	}
 
 	return OneByte + addrBytesRead + UInt64ByteSize, nil
 }
 
-func (s *SigLockedSingleDeposit) Serialize() (data []byte, err error) {
+func (s *SigLockedSingleDeposit) Serialize(skipValidation bool) (data []byte, err error) {
+	if !skipValidation {
+		if err := outputAmountValidator(-1, s); err != nil {
+			return nil, err
+		}
+	}
+
 	var b bytes.Buffer
 	if err := b.WriteByte(OutputSigLockedSingleDeposit); err != nil {
 		return nil, err
 	}
-	addrBytes, err := s.Address.Serialize()
+	addrBytes, err := s.Address.Serialize(skipValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +166,7 @@ func OutputsDepositAmountValidator() OutputsValidatorFunc {
 var outputAmountValidator = OutputsDepositAmountValidator()
 
 // ValidateOutputs validates the outputs by running them against the given OutputsValidatorFunc.
-func ValidateOutputs(outputs Serializables, funcs []OutputsValidatorFunc) error {
+func ValidateOutputs(outputs Serializables, funcs ...OutputsValidatorFunc) error {
 	for i, output := range outputs {
 		dep, ok := output.(*SigLockedSingleDeposit)
 		if !ok {

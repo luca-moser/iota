@@ -48,37 +48,43 @@ type UnsignedTransaction struct {
 	Payload Serializable `json:"payload"`
 }
 
-func (u *UnsignedTransaction) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, TransactionUnsigned); err != nil {
-		return 0, fmt.Errorf("unable to deserialize unsigned transaction: %w", err)
+func (u *UnsignedTransaction) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, TransactionUnsigned); err != nil {
+			return 0, fmt.Errorf("unable to deserialize unsigned transaction: %w", err)
+		}
 	}
 
 	// skip type byte
 	bytesReadTotal := OneByte
 	data = data[OneByte:]
 
-	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, InputSelector, &inputsArrayBound)
+	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, skipValidation, InputSelector, &inputsArrayBound)
 	if err != nil {
 		return 0, err
 	}
 	bytesReadTotal += inputBytesRead
 
-	if err := ValidateInputs(inputs, []InputsValidatorFunc{InputsUTXORefsUniqueValidator()}); err != nil {
-		return 0, err
+	if !skipValidation {
+		if err := ValidateInputs(inputs, InputsUTXORefsUniqueValidator()); err != nil {
+			return 0, err
+		}
 	}
 
 	u.Inputs = inputs
 
 	// advance to outputs
 	data = data[inputBytesRead:]
-	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, OutputSelector, &outputsArrayBound)
+	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, skipValidation, OutputSelector, &outputsArrayBound)
 	if err != nil {
 		return 0, err
 	}
 	bytesReadTotal += outputBytesRead
 
-	if err := ValidateOutputs(outputs, []OutputsValidatorFunc{OutputsAddrUniqueValidator()}); err != nil {
-		return 0, err
+	if !skipValidation {
+		if err := ValidateOutputs(outputs, OutputsAddrUniqueValidator()); err != nil {
+			return 0, err
+		}
 	}
 
 	u.Outputs = outputs
@@ -106,7 +112,16 @@ func (u *UnsignedTransaction) Deserialize(data []byte) (int, error) {
 	return bytesReadTotal, nil
 }
 
-func (u *UnsignedTransaction) Serialize() (data []byte, err error) {
+func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err error) {
+	if !skipValidation {
+		if err := ValidateInputs(u.Inputs, InputsUTXORefsUniqueValidator()); err != nil {
+			return nil, err
+		}
+		if err := ValidateOutputs(u.Outputs, OutputsAddrUniqueValidator()); err != nil {
+			return nil, err
+		}
+	}
+
 	var b bytes.Buffer
 	if err := b.WriteByte(TransactionUnsigned); err != nil {
 		return nil, err
@@ -120,7 +135,7 @@ func (u *UnsignedTransaction) Serialize() (data []byte, err error) {
 	}
 
 	for i := range u.Inputs {
-		inputSer, err := u.Inputs[i].Serialize()
+		inputSer, err := u.Inputs[i].Serialize(skipValidation)
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize input at index %d: %w", i, err)
 		}
@@ -136,7 +151,7 @@ func (u *UnsignedTransaction) Serialize() (data []byte, err error) {
 	}
 
 	for i := range u.Outputs {
-		outputSer, err := u.Outputs[i].Serialize()
+		outputSer, err := u.Outputs[i].Serialize(skipValidation)
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize output at index %d: %w", i, err)
 		}
@@ -153,7 +168,7 @@ func (u *UnsignedTransaction) Serialize() (data []byte, err error) {
 		return b.Bytes(), nil
 	}
 
-	payloadSer, err := u.Payload.Serialize()
+	payloadSer, err := u.Payload.Serialize(skipValidation)
 	if _, err := b.Write(payloadSer); err != nil {
 		return nil, err
 	}
@@ -176,17 +191,17 @@ func (u *UnsignedTransaction) Serialize() (data []byte, err error) {
 //	3. the accumulated deposit output is not over the total supply
 // The function does not syntactically validate the input or outputs themselves.
 func (u *UnsignedTransaction) SyntacticallyValid() error {
-	if err := ValidateInputs(u.Inputs, []InputsValidatorFunc{
+	if err := ValidateInputs(u.Inputs,
 		InputsUTXORefIndexBoundsValidator(),
 		InputsUTXORefsUniqueValidator(),
-	}); err != nil {
+	); err != nil {
 		return err
 	}
 
-	if err := ValidateOutputs(u.Outputs, []OutputsValidatorFunc{
+	if err := ValidateOutputs(u.Outputs,
 		OutputsAddrUniqueValidator(),
 		OutputsDepositAmountValidator(),
-	}); err != nil {
+	); err != nil {
 		return err
 	}
 

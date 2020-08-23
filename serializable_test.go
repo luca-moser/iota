@@ -6,7 +6,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/luca-moser/iotapkg"
+	"github.com/luca-moser/iota"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,13 +38,13 @@ type A struct {
 	Key [aKeyLength]byte
 }
 
-func (a *A) Deserialize(data []byte) (int, error) {
+func (a *A) Deserialize(data []byte, skipValidation bool) (int, error) {
 	data = data[iota.OneByte:]
 	copy(a.Key[:], data[:aKeyLength])
 	return iota.OneByte + aKeyLength, nil
 }
 
-func (a *A) Serialize() ([]byte, error) {
+func (a *A) Serialize(skipValidation bool) ([]byte, error) {
 	var bytes [iota.OneByte + aKeyLength]byte
 	bytes[0] = TypeA
 	copy(bytes[iota.OneByte:], a.Key[:])
@@ -66,13 +66,13 @@ type B struct {
 	Name [bNameLength]byte
 }
 
-func (b *B) Deserialize(data []byte) (int, error) {
+func (b *B) Deserialize(data []byte, skipValidation bool) (int, error) {
 	data = data[iota.OneByte:]
 	copy(b.Name[:], data[:bNameLength])
 	return iota.OneByte + bNameLength, nil
 }
 
-func (b *B) Serialize() ([]byte, error) {
+func (b *B) Serialize(skipValidation bool) ([]byte, error) {
 	var bytes [iota.OneByte + bNameLength]byte
 	bytes[0] = TypeB
 	copy(bytes[iota.OneByte:], b.Name[:])
@@ -93,7 +93,7 @@ func randB() *B {
 func TestDeserializeA(t *testing.T) {
 	seriA := randSerializedA()
 	objA := &A{}
-	bytesRead, err := objA.Deserialize(seriA)
+	bytesRead, err := objA.Deserialize(seriA, false)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
 	assert.Equal(t, seriA[iota.OneByte:], objA.Key[:])
@@ -101,7 +101,7 @@ func TestDeserializeA(t *testing.T) {
 
 func TestDeserializeObject(t *testing.T) {
 	seriA := randSerializedA()
-	objA, bytesRead, err := iota.DeserializeObject(seriA, DummyTypeSelector)
+	objA, bytesRead, err := iota.DeserializeObject(seriA, false, DummyTypeSelector)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
 	assert.IsType(t, &A{}, objA)
@@ -116,7 +116,7 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	assert.NoError(t, buf.WriteByte(byte(len(originObjs))))
 
 	for _, seri := range originObjs {
-		seriBytes, err := seri.Serialize()
+		seriBytes, err := seri.Serialize(false)
 		assert.NoError(t, err)
 		written, err := buf.Write(seriBytes)
 		assert.NoError(t, err)
@@ -124,7 +124,7 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	seris, serisByteRead, err := iota.DeserializeArrayOfObjects(data, DummyTypeSelector, nil)
+	seris, serisByteRead, err := iota.DeserializeArrayOfObjects(data, false, DummyTypeSelector, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(data), serisByteRead)
 	assert.EqualValues(t, originObjs, seris)
@@ -138,7 +138,7 @@ func TestLexicalOrderedByteSlices(t *testing.T) {
 	}
 	tests := []test{
 		{
-			name: "ok",
+			name: "ok - order by first ele",
 			source: iota.LexicalOrderedByteSlices{
 				{3, 2, 1},
 				{2, 3, 1},
@@ -151,7 +151,7 @@ func TestLexicalOrderedByteSlices(t *testing.T) {
 			},
 		},
 		{
-			name: "ok",
+			name: "ok - order by last ele",
 			source: iota.LexicalOrderedByteSlices{
 				{1, 1, 3},
 				{1, 1, 2},

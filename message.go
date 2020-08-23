@@ -18,11 +18,11 @@ type Message struct {
 	Nonce   uint64                  `json:"nonce"`
 }
 
-func (m Message) Deserialize(data []byte) (int, error) {
+func (m Message) Deserialize(data []byte, skipValidation bool) (int, error) {
 	return 0, nil
 }
 
-func (m Message) Serialize() ([]byte, error) {
+func (m Message) Serialize(skipValidation bool) ([]byte, error) {
 	var b bytes.Buffer
 	if err := b.WriteByte(MessageVersion); err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (m Message) Serialize() ([]byte, error) {
 		return nil, err
 	}
 
-	payloadData, err := m.Payload.Serialize()
+	payloadData, err := m.Payload.Serialize(skipValidation)
 	if err != nil {
 		return nil, err
 	}

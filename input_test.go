@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/luca-moser/iotapkg"
+	"github.com/luca-moser/iota"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,7 +27,7 @@ func TestUTXOInput_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			u := &iota.UTXOInput{}
-			bytesRead, err := u.Deserialize(tt.data)
+			bytesRead, err := u.Deserialize(tt.data, false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -50,7 +50,7 @@ func TestUTXOInput_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := tt.source.Serialize()
+			data, err := tt.source.Serialize(false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -117,7 +117,7 @@ func TestInputsValidatorFunc(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := iota.ValidateInputs(tt.args.inputs, tt.args.funcs); (err != nil) != tt.wantErr {
+			if err := iota.ValidateInputs(tt.args.inputs, tt.args.funcs...); (err != nil) != tt.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

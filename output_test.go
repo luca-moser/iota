@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/luca-moser/iotapkg"
+	"github.com/luca-moser/iota"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -46,7 +46,7 @@ func TestSigLockedSingleDeposit_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dep := &iota.SigLockedSingleDeposit{}
-			bytesRead, err := dep.Deserialize(tt.source)
+			bytesRead, err := dep.Deserialize(tt.source, false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -73,7 +73,7 @@ func TestSigLockedSingleDeposit_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := tt.source.Serialize()
+			data, err := tt.source.Serialize(false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -172,7 +172,7 @@ func TestOutputsValidatorFunc(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := iota.ValidateOutputs(tt.args.outputs, tt.args.funcs); (err != nil) != tt.wantErr {
+			if err := iota.ValidateOutputs(tt.args.outputs, tt.args.funcs...); (err != nil) != tt.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

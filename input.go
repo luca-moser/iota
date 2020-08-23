@@ -49,13 +49,15 @@ type UTXOInput struct {
 	TransactionOutputIndex byte `json:"transaction_output_index"`
 }
 
-func (u *UTXOInput) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, InputUTXO); err != nil {
-		return 0, fmt.Errorf("unable to deserialize UTXO input: %w", err)
-	}
+func (u *UTXOInput) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, InputUTXO); err != nil {
+			return 0, fmt.Errorf("unable to deserialize UTXO input: %w", err)
+		}
 
-	if err := checkMinByteLength(UTXOInputMinSize, len(data)); err != nil {
-		return 0, fmt.Errorf("invalid utxo input bytes: %w", err)
+		if err := checkMinByteLength(UTXOInputMinSize, len(data)); err != nil {
+			return 0, fmt.Errorf("invalid utxo input bytes: %w", err)
+		}
 	}
 
 	// skip type
@@ -71,15 +73,24 @@ func (u *UTXOInput) Deserialize(data []byte) (int, error) {
 	}
 
 	outputIndexByte := byte(outputIndex)
-	if err := utxoInputRefBoundsValidator(-1, u); err != nil {
-		return 0, err
+	u.TransactionOutputIndex = outputIndexByte
+
+	if !skipValidation {
+		if err := utxoInputRefBoundsValidator(-1, u); err != nil {
+			return 0, err
+		}
 	}
 
-	u.TransactionOutputIndex = outputIndexByte
 	return OneByte + TransactionIDLength + outputIndexByteSize, nil
 }
 
-func (u *UTXOInput) Serialize() (data []byte, err error) {
+func (u *UTXOInput) Serialize(skipValidation bool) (data []byte, err error) {
+	if !skipValidation {
+		if err := utxoInputRefBoundsValidator(-1, u); err != nil {
+			return nil, err
+		}
+	}
+
 	var b bytes.Buffer
 	if err := b.WriteByte(InputUTXO); err != nil {
 		return nil, err
@@ -133,7 +144,7 @@ func InputsUTXORefIndexBoundsValidator() InputsValidatorFunc {
 var utxoInputRefBoundsValidator = InputsUTXORefIndexBoundsValidator()
 
 // ValidateInputs validates the inputs by running them against the given InputsValidatorFunc.
-func ValidateInputs(inputs Serializables, funcs []InputsValidatorFunc) error {
+func ValidateInputs(inputs Serializables, funcs ...InputsValidatorFunc) error {
 	for i, input := range inputs {
 		dep, ok := input.(*UTXOInput)
 		if !ok {

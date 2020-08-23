@@ -48,16 +48,18 @@ type SignedTransactionPayload struct {
 	UnlockBlocks Serializables `json:"unlock_blocks"`
 }
 
-func (s *SignedTransactionPayload) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, SignedTransactionPayloadID); err != nil {
-		return 0, fmt.Errorf("unable to deserialize signed transaction payload: %w", err)
+func (s *SignedTransactionPayload) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, SignedTransactionPayloadID); err != nil {
+			return 0, fmt.Errorf("unable to deserialize signed transaction payload: %w", err)
+		}
 	}
 
 	// skip payload type
 	bytesReadTotal := OneByte
 	data = data[OneByte:]
 
-	tx, txBytesRead, err := DeserializeObject(data, TransactionSelector)
+	tx, txBytesRead, err := DeserializeObject(data, skipValidation, TransactionSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -69,7 +71,7 @@ func (s *SignedTransactionPayload) Deserialize(data []byte) (int, error) {
 
 	// advance to unlock blocks
 	data = data[txBytesRead:]
-	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, UnlockBlockSelector, &ArrayRules{
+	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, skipValidation, UnlockBlockSelector, &ArrayRules{
 		Min:    inputCount,
 		Max:    inputCount,
 		MinErr: ErrUnlockBlocksMustMatchInputCount,
@@ -80,8 +82,10 @@ func (s *SignedTransactionPayload) Deserialize(data []byte) (int, error) {
 	}
 	bytesReadTotal += unlockBlocksByteRead
 
-	if err := ValidateUnlockBlocks(unlockBlocks, []UnlockBlockValidatorFunc{UnlockBlocksSigUniqueAndRefValidator()}); err != nil {
-		return 0, err
+	if !skipValidation {
+		if err := ValidateUnlockBlocks(unlockBlocks, UnlockBlocksSigUniqueAndRefValidator()); err != nil {
+			return 0, err
+		}
 	}
 
 	s.UnlockBlocks = unlockBlocks
@@ -89,14 +93,20 @@ func (s *SignedTransactionPayload) Deserialize(data []byte) (int, error) {
 	return bytesReadTotal, nil
 }
 
-func (s *SignedTransactionPayload) Serialize() ([]byte, error) {
+func (s *SignedTransactionPayload) Serialize(skipValidation bool) ([]byte, error) {
+	if !skipValidation {
+		if err := ValidateUnlockBlocks(s.UnlockBlocks, UnlockBlocksSigUniqueAndRefValidator()); err != nil {
+			return nil, err
+		}
+	}
+
 	var b bytes.Buffer
 	if err := b.WriteByte(SignedTransactionPayloadID); err != nil {
 		return nil, err
 	}
 
 	// write transaction
-	txBytes, err := s.Transaction.Serialize()
+	txBytes, err := s.Transaction.Serialize(skipValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +122,7 @@ func (s *SignedTransactionPayload) Serialize() ([]byte, error) {
 	}
 
 	for i := range s.UnlockBlocks {
-		unlockBlockSer, err := s.UnlockBlocks[i].Serialize()
+		unlockBlockSer, err := s.UnlockBlocks[i].Serialize(skipValidation)
 		if err != nil {
 			return nil, err
 		}

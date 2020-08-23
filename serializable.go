@@ -11,11 +11,12 @@ import (
 type Serializable interface {
 	// Deserialize deserializes the given data into the object and returns the amount of bytes consumed from data.
 	// If the passed data is not big enough for deserialization, an error must be returned.
-	// During deserialization the data is checked for validity.
-	Deserialize(data []byte) (int, error)
+	// During deserialization the data is checked for validity and can be optionally turned off.
+	Deserialize(data []byte, skipValidation bool) (int, error)
 	// Serialize returns a serialized byte representation.
 	// This function does not check the serialized data for validity.
-	Serialize() ([]byte, error)
+	// During serialization the data is checked for validity and can be optionally turned off.
+	Serialize(skipValidation bool) ([]byte, error)
 }
 
 // Serializables is a slice of Serializable.
@@ -60,7 +61,7 @@ func (l LexicalOrderedByteSlices) Swap(i, j int) {
 // DeserializeArrayOfObjects deserializes the given data into Serializables.
 // The data is expected to start with the count denoting varint, followed by the actual structs.
 // An optional ArrayRules can be passed in to return an error in case it is violated.
-func DeserializeArrayOfObjects(data []byte, serSel SerializableSelectorFunc, arrayBounds *ArrayRules) (Serializables, int, error) {
+func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel SerializableSelectorFunc, arrayBounds *ArrayRules) (Serializables, int, error) {
 	var bytesReadTotal int
 	seriCount, seriCountBytesSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
 	if err != nil {
@@ -85,7 +86,7 @@ func DeserializeArrayOfObjects(data []byte, serSel SerializableSelectorFunc, arr
 
 	var offset int
 	for i := 0; i < int(seriCount); i++ {
-		seri, seriBytesConsumed, err := DeserializeObject(data[offset:], serSel)
+		seri, seriBytesConsumed, err := DeserializeObject(data[offset:], skipValidation, serSel)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -111,7 +112,7 @@ func DeserializeArrayOfObjects(data []byte, serSel SerializableSelectorFunc, arr
 
 // DeserializeObject deserializes the given data into a Serializable.
 // The data is expected to start with the type denoting byte.
-func DeserializeObject(data []byte, serSel SerializableSelectorFunc) (Serializable, int, error) {
+func DeserializeObject(data []byte, skipValidation bool, serSel SerializableSelectorFunc) (Serializable, int, error) {
 	if len(data) < 2 {
 		return nil, 0, ErrDeserializationDataTooSmall
 	}
@@ -119,7 +120,7 @@ func DeserializeObject(data []byte, serSel SerializableSelectorFunc) (Serializab
 	if err != nil {
 		return nil, 0, err
 	}
-	seriBytesConsumed, err := seri.Deserialize(data)
+	seriBytesConsumed, err := seri.Deserialize(data, skipValidation)
 	if err != nil {
 		return nil, 0, fmt.Errorf("unable to deserialize %T: %w", seri, err)
 	}

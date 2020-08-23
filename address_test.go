@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/luca-moser/iotapkg"
+	"github.com/luca-moser/iota"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +35,7 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			wotsAddr := &iota.WOTSAddress{}
-			bytesRead, err := wotsAddr.Deserialize(tt.wotsAddrData)
+			bytesRead, err := wotsAddr.Deserialize(tt.wotsAddrData, false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -60,7 +60,7 @@ func TestWOTSAddress_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wotsData, err := tt.source.Serialize()
+			wotsData, err := tt.source.Serialize(false)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.target, wotsData)
 		})
@@ -94,7 +94,7 @@ func TestEd25519Address_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			edAddr := &iota.Ed25519Address{}
-			bytesRead, err := edAddr.Deserialize(tt.edAddrData)
+			bytesRead, err := edAddr.Deserialize(tt.edAddrData, false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -119,7 +119,7 @@ func TestEd25519Address_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			edData, err := tt.source.Serialize()
+			edData, err := tt.source.Serialize(false)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.target, edData)
 		})

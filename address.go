@@ -41,18 +41,24 @@ func AddressSelector(typeByte byte) (Serializable, error) {
 // Defines a WOTS address.
 type WOTSAddress [WOTSAddressBytesLength]byte
 
-func (wotsAddr *WOTSAddress) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, AddressWOTS); err != nil {
-		return 0, fmt.Errorf("unable to deserialize WOTS address: %w", err)
-	}
-	if err := checkMinByteLength(WOTSAddressSerializedBytesSize, len(data)); err != nil {
-		return 0, fmt.Errorf("invalid WOTS address bytes: %w", err)
+func (wotsAddr *WOTSAddress) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, AddressWOTS); err != nil {
+			return 0, fmt.Errorf("unable to deserialize WOTS address: %w", err)
+		}
+		if err := checkMinByteLength(WOTSAddressSerializedBytesSize, len(data)); err != nil {
+			return 0, fmt.Errorf("invalid WOTS address bytes: %w", err)
+		}
+		// TODO: check T5B1 encoding
 	}
 	copy(wotsAddr[:], data[OneByte:])
 	return WOTSAddressSerializedBytesSize, nil
 }
 
-func (wotsAddr *WOTSAddress) Serialize() (data []byte, err error) {
+func (wotsAddr *WOTSAddress) Serialize(skipValidation bool) (data []byte, err error) {
+	if !skipValidation {
+		// TODO: check T5B1 encoding
+	}
 	var b [OneByte + WOTSAddressBytesLength]byte
 	b[0] = AddressWOTS
 	copy(b[OneByte:], wotsAddr[:])
@@ -62,18 +68,20 @@ func (wotsAddr *WOTSAddress) Serialize() (data []byte, err error) {
 // Defines an Ed25519 address.
 type Ed25519Address [Ed25519AddressBytesLength]byte
 
-func (edAddr *Ed25519Address) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, AddressEd25519); err != nil {
-		return 0, fmt.Errorf("unable to deserialize Ed25519 address: %w", err)
-	}
-	if err := checkMinByteLength(Ed25519AddressSerializedBytesSize, len(data)); err != nil {
-		return 0, fmt.Errorf("invalid Ed25519 address bytes: %w", err)
+func (edAddr *Ed25519Address) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, AddressEd25519); err != nil {
+			return 0, fmt.Errorf("unable to deserialize Ed25519 address: %w", err)
+		}
+		if err := checkMinByteLength(Ed25519AddressSerializedBytesSize, len(data)); err != nil {
+			return 0, fmt.Errorf("invalid Ed25519 address bytes: %w", err)
+		}
 	}
 	copy(edAddr[:], data[OneByte:])
 	return Ed25519AddressSerializedBytesSize, nil
 }
 
-func (edAddr *Ed25519Address) Serialize() (data []byte, err error) {
+func (edAddr *Ed25519Address) Serialize(skipValidation bool) (data []byte, err error) {
 	var b [OneByte + Ed25519AddressBytesLength]byte
 	b[0] = AddressEd25519
 	copy(b[OneByte:], edAddr[:])

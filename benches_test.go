@@ -4,32 +4,58 @@ import (
 	"crypto/ed25519"
 	"testing"
 
-	"github.com/luca-moser/iotapkg"
+	"github.com/luca-moser/iota"
 )
 
-func BenchmarkDeserializeOneIOSigTxPayload(b *testing.B) {
-	data, err := oneInputOutputSignedTransactionPayload().Serialize()
+func BenchmarkDeserializeWithValidationOneIOSigTxPayload(b *testing.B) {
+	data, err := oneInputOutputSignedTransactionPayload().Serialize(true)
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	target := &iota.SignedTransactionPayload{}
-	_, err = target.Deserialize(data)
+	_, err = target.Deserialize(data, true)
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		target.Deserialize(data)
+		target.Deserialize(data, false)
 	}
 }
 
-func BenchmarkSerializeOneIOSigTxPayload(b *testing.B) {
+func BenchmarkDeserializeWithoutValidationOneIOSigTxPayload(b *testing.B) {
+	data, err := oneInputOutputSignedTransactionPayload().Serialize(true)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	target := &iota.SignedTransactionPayload{}
+	_, err = target.Deserialize(data, true)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		target.Deserialize(data, true)
+	}
+}
+
+func BenchmarkSerializeWithValidationOneIOSigTxPayload(b *testing.B) {
 	sigTxPayload := oneInputOutputSignedTransactionPayload()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sigTxPayload.Serialize()
+		sigTxPayload.Serialize(false)
+	}
+}
+
+func BenchmarkSerializeWithoutValidationOneIOSigTxPayload(b *testing.B) {
+	sigTxPayload := oneInputOutputSignedTransactionPayload()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sigTxPayload.Serialize(true)
 	}
 }
 
@@ -37,7 +63,7 @@ func BenchmarkSignEd25519OneIOUnsignedTx(b *testing.B) {
 	sigTxPayload := oneInputOutputSignedTransactionPayload()
 	b.ResetTimer()
 
-	unsigTxData, err := sigTxPayload.Transaction.Serialize()
+	unsigTxData, err := sigTxPayload.Transaction.Serialize(true)
 	must(err)
 
 	seed := randEd25519Seed()
@@ -53,7 +79,7 @@ func BenchmarkVerifyEd25519OneIOUnsignedTx(b *testing.B) {
 	sigTxPayload := oneInputOutputSignedTransactionPayload()
 	b.ResetTimer()
 
-	unsigTxData, err := sigTxPayload.Transaction.Serialize()
+	unsigTxData, err := sigTxPayload.Transaction.Serialize(true)
 	must(err)
 
 	seed := randEd25519Seed()

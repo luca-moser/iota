@@ -42,16 +42,18 @@ type SignatureUnlockBlock struct {
 	Signature Serializable `json:"signature"`
 }
 
-func (s *SignatureUnlockBlock) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, UnlockBlockSignature); err != nil {
-		return 0, fmt.Errorf("unable to deserialize signature unlock block: %w", err)
+func (s *SignatureUnlockBlock) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, UnlockBlockSignature); err != nil {
+			return 0, fmt.Errorf("unable to deserialize signature unlock block: %w", err)
+		}
 	}
 
 	// skip type byte
 	bytesReadTotal := OneByte
 	data = data[OneByte:]
 
-	sig, sigBytesRead, err := DeserializeObject(data, SignatureSelector)
+	sig, sigBytesRead, err := DeserializeObject(data, skipValidation, SignatureSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -61,8 +63,8 @@ func (s *SignatureUnlockBlock) Deserialize(data []byte) (int, error) {
 	return bytesReadTotal, nil
 }
 
-func (s *SignatureUnlockBlock) Serialize() ([]byte, error) {
-	sigBytes, err := s.Signature.Serialize()
+func (s *SignatureUnlockBlock) Serialize(skipValidation bool) ([]byte, error) {
+	sigBytes, err := s.Signature.Serialize(skipValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -74,9 +76,11 @@ type ReferenceUnlockBlock struct {
 	Reference uint64 `json:"reference"`
 }
 
-func (r *ReferenceUnlockBlock) Deserialize(data []byte) (int, error) {
-	if err := checkType(data, UnlockBlockReference); err != nil {
-		return 0, fmt.Errorf("unable to deserialize reference unlock block: %w", err)
+func (r *ReferenceUnlockBlock) Deserialize(data []byte, skipValidation bool) (int, error) {
+	if !skipValidation {
+		if err := checkType(data, UnlockBlockReference); err != nil {
+			return 0, fmt.Errorf("unable to deserialize reference unlock block: %w", err)
+		}
 	}
 	data = data[OneByte:]
 	reference, referenceByteSize, err := ReadUvarint(bytes.NewReader(data))
@@ -87,7 +91,7 @@ func (r *ReferenceUnlockBlock) Deserialize(data []byte) (int, error) {
 	return OneByte + referenceByteSize, nil
 }
 
-func (r *ReferenceUnlockBlock) Serialize() ([]byte, error) {
+func (r *ReferenceUnlockBlock) Serialize(skipValidation bool) ([]byte, error) {
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 	bytesWritten := binary.PutUvarint(varIntBuf, r.Reference)
 	return append([]byte{UnlockBlockReference}, varIntBuf[:bytesWritten]...), nil
@@ -131,7 +135,7 @@ func UnlockBlocksSigUniqueAndRefValidator() UnlockBlockValidatorFunc {
 }
 
 // ValidateUnlockBlocks validates the unlock blocks by running them against the given UnlockBlockValidatorFunc.
-func ValidateUnlockBlocks(unlockBlocks Serializables, funcs []UnlockBlockValidatorFunc) error {
+func ValidateUnlockBlocks(unlockBlocks Serializables, funcs ...UnlockBlockValidatorFunc) error {
 	for i, unlockBlock := range unlockBlocks {
 		switch unlockBlock.(type) {
 		case *SignatureUnlockBlock:

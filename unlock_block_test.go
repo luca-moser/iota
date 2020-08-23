@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/luca-moser/iotapkg"
+	"github.com/luca-moser/iota"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,7 +34,7 @@ func TestSignatureUnlockBlock_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			edSig := &iota.SignatureUnlockBlock{}
-			bytesRead, err := edSig.Deserialize(tt.source)
+			bytesRead, err := edSig.Deserialize(tt.source, false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -60,7 +60,7 @@ func TestUnlockBlockSignature_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			edData, err := tt.source.Serialize()
+			edData, err := tt.source.Serialize(false)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.target, edData)
 		})
@@ -84,7 +84,7 @@ func TestReferenceUnlockBlock_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			edSig := &iota.ReferenceUnlockBlock{}
-			bytesRead, err := edSig.Deserialize(tt.source)
+			bytesRead, err := edSig.Deserialize(tt.source, false)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -110,7 +110,7 @@ func TestUnlockBlockReference_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			edData, err := tt.source.Serialize()
+			edData, err := tt.source.Serialize(false)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.target, edData)
 		})
@@ -179,7 +179,7 @@ func TestUnlockBlockValidatorFunc(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := iota.ValidateUnlockBlocks(tt.args.inputs, tt.args.funcs); (err != nil) != tt.wantErr {
+			if err := iota.ValidateUnlockBlocks(tt.args.inputs, tt.args.funcs...); (err != nil) != tt.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
