@@ -43,6 +43,40 @@ type ArrayRules struct {
 	ElementBytesLexicalOrderErr error
 }
 
+// CheckBounds checks whether the given count violates the array bounds.
+func (ar *ArrayRules) CheckBounds(count uint64) error {
+	if ar.Min != 0 && count < ar.Min {
+		return fmt.Errorf("%w: min is %d but count is %d", ar.MinErr, ar.Min, count)
+	}
+	if ar.Max != 0 && count > ar.Max {
+		return fmt.Errorf("%w: max is %d but count is %d", ar.MaxErr, ar.Max, count)
+	}
+	return nil
+}
+
+// LexicalOrderFunc is a function which runs during lexical order validation.
+type LexicalOrderFunc func(int, []byte) error
+
+// LexicalOrderValidator returns a LexicalOrderFunc which returns an error if the given byte slices
+// are not ordered lexicographically.
+func (ar *ArrayRules) LexicalOrderValidator() LexicalOrderFunc {
+	var prev []byte
+	var prevIndex int
+	return func(index int, next []byte) error {
+		switch {
+		case prev == nil:
+			prev = next
+			prevIndex = index
+		case bytes.Compare(prev, next) > 0:
+			return fmt.Errorf("%w: element %d should have been before element %d", ar.ElementBytesLexicalOrderErr, index, prevIndex)
+		default:
+			prev = next
+			prevIndex = index
+		}
+		return nil
+	}
+}
+
 // LexicalOrderedByteSlices are byte slices ordered in lexical order.
 type LexicalOrderedByteSlices [][]byte
 
@@ -61,7 +95,7 @@ func (l LexicalOrderedByteSlices) Swap(i, j int) {
 // DeserializeArrayOfObjects deserializes the given data into Serializables.
 // The data is expected to start with the count denoting varint, followed by the actual structs.
 // An optional ArrayRules can be passed in to return an error in case it is violated.
-func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel SerializableSelectorFunc, arrayBounds *ArrayRules) (Serializables, int, error) {
+func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel SerializableSelectorFunc, arrayRules *ArrayRules) (Serializables, int, error) {
 	var bytesReadTotal int
 	seriCount, seriCountBytesSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
 	if err != nil {
@@ -69,12 +103,9 @@ func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel Serializ
 	}
 	bytesReadTotal += seriCountBytesSize
 
-	if arrayBounds != nil {
-		if arrayBounds.Min != 0 && seriCount < arrayBounds.Min {
-			return nil, 0, fmt.Errorf("%w: min is %d but count is %d", arrayBounds.MinErr, arrayBounds.Min, seriCount)
-		}
-		if arrayBounds.Max != 0 && seriCount > arrayBounds.Max {
-			return nil, 0, fmt.Errorf("%w: max is %d but count is %d", arrayBounds.MaxErr, arrayBounds.Max, seriCount)
+	if arrayRules != nil {
+		if err := arrayRules.CheckBounds(seriCount); err != nil {
+			return nil, 0, err
 		}
 	}
 
@@ -82,7 +113,10 @@ func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel Serializ
 	var seris Serializables
 	data = data[seriCountBytesSize:]
 
-	var prevEleBytes []byte
+	var lexicalOrderValidator LexicalOrderFunc
+	if arrayRules != nil && arrayRules.ElementBytesLexicalOrder {
+		lexicalOrderValidator = arrayRules.LexicalOrderValidator()
+	}
 
 	var offset int
 	for i := 0; i < int(seriCount); i++ {
@@ -91,15 +125,9 @@ func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel Serializ
 			return nil, 0, err
 		}
 		// check lexical order against previous element
-		if arrayBounds != nil && arrayBounds.ElementBytesLexicalOrder {
-			eleBytes := data[offset : offset+seriBytesConsumed]
-			switch {
-			case prevEleBytes == nil:
-				prevEleBytes = eleBytes
-			case bytes.Compare(prevEleBytes, eleBytes) > 0:
-				return nil, 0, fmt.Errorf("%w: element %d should have been before element %d", arrayBounds.ElementBytesLexicalOrderErr, i, i-1)
-			default:
-				prevEleBytes = eleBytes
+		if lexicalOrderValidator != nil {
+			if err := lexicalOrderValidator(i, data[offset:offset+seriBytesConsumed]); err != nil {
+				return nil, 0, err
 			}
 		}
 		seris = append(seris, seri)

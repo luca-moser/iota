@@ -134,6 +134,11 @@ func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err e
 		return nil, err
 	}
 
+	var inputsLexicalOrderValidator LexicalOrderFunc
+	if !skipValidation && inputsArrayBound.ElementBytesLexicalOrder {
+		inputsLexicalOrderValidator = inputsArrayBound.LexicalOrderValidator()
+	}
+
 	for i := range u.Inputs {
 		inputSer, err := u.Inputs[i].Serialize(skipValidation)
 		if err != nil {
@@ -141,6 +146,11 @@ func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err e
 		}
 		if _, err := b.Write(inputSer); err != nil {
 			return nil, err
+		}
+		if inputsLexicalOrderValidator != nil {
+			if err := inputsLexicalOrderValidator(i, inputSer); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -150,6 +160,11 @@ func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err e
 		return nil, err
 	}
 
+	var outputsLexicalOrderValidator LexicalOrderFunc
+	if !skipValidation && outputsArrayBound.ElementBytesLexicalOrder {
+		outputsLexicalOrderValidator = outputsArrayBound.LexicalOrderValidator()
+	}
+
 	for i := range u.Outputs {
 		outputSer, err := u.Outputs[i].Serialize(skipValidation)
 		if err != nil {
@@ -157,6 +172,11 @@ func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err e
 		}
 		if _, err := b.Write(outputSer); err != nil {
 			return nil, err
+		}
+		if outputsLexicalOrderValidator != nil {
+			if err := outputsLexicalOrderValidator(i, outputSer); err != nil {
+				return nil, err
+			}
 		}
 	}
 
