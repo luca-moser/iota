@@ -25,7 +25,7 @@ func TestMilestonePayload_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			unsigDataPayload := &iota.UnsignedDataPayload{}
-			bytesRead, err := unsigDataPayload.Deserialize(tt.source, false)
+			bytesRead, err := unsigDataPayload.Deserialize(tt.source, iota.DeSeriModePerformValidation)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -51,7 +51,7 @@ func TestMilestonePayload_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			edData, err := tt.source.Serialize(false)
+			edData, err := tt.source.Serialize(iota.DeSeriModePerformValidation)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.target, edData)
 		})

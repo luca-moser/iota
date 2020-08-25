@@ -34,8 +34,8 @@ func SignatureSelector(typeByte byte) (Serializable, error) {
 
 type WOTSSignature struct{}
 
-func (w *WOTSSignature) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (w *WOTSSignature) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, SignatureWOTS); err != nil {
 			return 0, fmt.Errorf("unable to deserialize WOTS signature: %w", err)
 		}
@@ -43,7 +43,7 @@ func (w *WOTSSignature) Deserialize(data []byte, skipValidation bool) (int, erro
 	panic("implement me")
 }
 
-func (w *WOTSSignature) Serialize(skipValidation bool) ([]byte, error) {
+func (w *WOTSSignature) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	panic("implement me")
 }
 
@@ -52,8 +52,8 @@ type Ed25519Signature struct {
 	Signature [ed25519.SignatureSize]byte `json:"signature"`
 }
 
-func (e *Ed25519Signature) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (e *Ed25519Signature) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, SignatureEd25519); err != nil {
 			return 0, fmt.Errorf("unable to deserialize Ed25519 signature: %w", err)
 		}
@@ -68,7 +68,7 @@ func (e *Ed25519Signature) Deserialize(data []byte, skipValidation bool) (int, e
 	return Ed25519SignatureSerializedBytesSize, nil
 }
 
-func (e *Ed25519Signature) Serialize(skipValidation bool) ([]byte, error) {
+func (e *Ed25519Signature) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	var b [Ed25519SignatureSerializedBytesSize]byte
 	b[0] = SignatureEd25519
 	copy(b[OneByte:], e.PublicKey[:])

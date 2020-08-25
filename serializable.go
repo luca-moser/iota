@@ -11,12 +11,12 @@ import (
 type Serializable interface {
 	// Deserialize deserializes the given data (by copying) into the object and returns the amount of bytes consumed from data.
 	// If the passed data is not big enough for deserialization, an error must be returned.
-	// During deserialization the data is checked for validity and can be optionally turned off.
-	Deserialize(data []byte, skipValidation bool) (int, error)
+	// During deserialization additional validation may be performed if the given modes are given.
+	Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error)
 	// Serialize returns a serialized byte representation.
 	// This function does not check the serialized data for validity.
-	// During serialization the data is checked for validity and can be optionally turned off.
-	Serialize(skipValidation bool) ([]byte, error)
+	// During serialization additional validation may be performed if the given modes are given.
+	Serialize(deSeriMode DeSerializationMode) ([]byte, error)
 }
 
 // Serializables is a slice of Serializable.
@@ -25,6 +25,21 @@ type Serializables []Serializable
 // SerializableSelectorFunc is a function that given a type byte, returns an empty instance of the given underlying type.
 // If the type doesn't resolve, an error is returned.
 type SerializableSelectorFunc func(typeByte byte) (Serializable, error)
+
+// DeSerializationMode defines the mode of de/serialization.
+type DeSerializationMode byte
+
+const (
+	// Instructs de/serialization to perform no validation.
+	DeSeriModeNoValidation DeSerializationMode = 0
+	// Instructs de/serialization to perform validation.
+	DeSeriModePerformValidation DeSerializationMode = 1 << 0
+)
+
+// HasMode checks whether the de/serialization mode includes the given mode.
+func (sm DeSerializationMode) HasMode(mode DeSerializationMode) bool {
+	return sm&mode == 1
+}
 
 // ArrayRules defines rules around a to be deserialized array.
 // Min and Max at 0 define an unbounded array.
@@ -95,7 +110,7 @@ func (l LexicalOrderedByteSlices) Swap(i, j int) {
 // DeserializeArrayOfObjects deserializes the given data into Serializables.
 // The data is expected to start with the count denoting varint, followed by the actual structs.
 // An optional ArrayRules can be passed in to return an error in case it is violated.
-func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel SerializableSelectorFunc, arrayRules *ArrayRules) (Serializables, int, error) {
+func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, serSel SerializableSelectorFunc, arrayRules *ArrayRules) (Serializables, int, error) {
 	var bytesReadTotal int
 	seriCount, seriCountBytesSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
 	if err != nil {
@@ -120,7 +135,7 @@ func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel Serializ
 
 	var offset int
 	for i := 0; i < int(seriCount); i++ {
-		seri, seriBytesConsumed, err := DeserializeObject(data[offset:], skipValidation, serSel)
+		seri, seriBytesConsumed, err := DeserializeObject(data[offset:], deSeriMode, serSel)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -140,7 +155,7 @@ func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel Serializ
 
 // DeserializeObject deserializes the given data into a Serializable.
 // The data is expected to start with the type denoting byte.
-func DeserializeObject(data []byte, skipValidation bool, serSel SerializableSelectorFunc) (Serializable, int, error) {
+func DeserializeObject(data []byte, deSeriMode DeSerializationMode, serSel SerializableSelectorFunc) (Serializable, int, error) {
 	if len(data) < 2 {
 		return nil, 0, ErrDeserializationNotEnoughData
 	}
@@ -148,7 +163,7 @@ func DeserializeObject(data []byte, skipValidation bool, serSel SerializableSele
 	if err != nil {
 		return nil, 0, err
 	}
-	seriBytesConsumed, err := seri.Deserialize(data, skipValidation)
+	seriBytesConsumed, err := seri.Deserialize(data, deSeriMode)
 	if err != nil {
 		return nil, 0, fmt.Errorf("unable to deserialize %T: %w", seri, err)
 	}

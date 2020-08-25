@@ -21,8 +21,8 @@ type MilestonePayload struct {
 	Signature            [MilestoneSignatureLength]byte            `json:"signature"`
 }
 
-func (m *MilestonePayload) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (m *MilestonePayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, MilestonePayloadID); err != nil {
 			return 0, fmt.Errorf("unable to deserialize milestone payload: %w", err)
 		}
@@ -44,7 +44,7 @@ func (m *MilestonePayload) Deserialize(data []byte, skipValidation bool) (int, e
 	}
 	data = data[UInt64ByteSize:]
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if len(data) < MilestoneInclusionMerkleProofLength+MilestoneSignatureLength {
 			return 0, fmt.Errorf("%w: for milestone inclusion merkle proof and signature", ErrDeserializationNotEnoughData)
 		}
@@ -57,7 +57,7 @@ func (m *MilestonePayload) Deserialize(data []byte, skipValidation bool) (int, e
 	return OneByte + indexBytesRead + UInt64ByteSize + MilestoneInclusionMerkleProofLength + MilestoneSignatureLength, nil
 }
 
-func (m *MilestonePayload) Serialize(skipValidation bool) ([]byte, error) {
+func (m *MilestonePayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	var b bytes.Buffer
 	if err := b.WriteByte(MilestonePayloadID); err != nil {
 		return nil, err

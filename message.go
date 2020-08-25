@@ -34,8 +34,8 @@ type Message struct {
 	Nonce   uint64                  `json:"nonce"`
 }
 
-func (m *Message) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, MessageVersion); err != nil {
 			return 0, fmt.Errorf("unable to deserialize message: %w", err)
 		}
@@ -59,7 +59,7 @@ func (m *Message) Deserialize(data []byte, skipValidation bool) (int, error) {
 	}
 	data = data[payloadLengthByteSize:]
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: validate payload length
 	}
 
@@ -69,7 +69,7 @@ func (m *Message) Deserialize(data []byte, skipValidation bool) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		payloadBytesConsumed, err = payload.Deserialize(data, skipValidation)
+		payloadBytesConsumed, err = payload.Deserialize(data, deSeriMode)
 		if err != nil {
 			return 0, err
 		}
@@ -89,7 +89,7 @@ func (m *Message) Deserialize(data []byte, skipValidation bool) (int, error) {
 	return l, nil
 }
 
-func (m *Message) Serialize(skipValidation bool) ([]byte, error) {
+func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	var b bytes.Buffer
 	if err := b.WriteByte(MessageVersion); err != nil {
 		return nil, err
@@ -109,12 +109,12 @@ func (m *Message) Serialize(skipValidation bool) ([]byte, error) {
 			return nil, err
 		}
 	default:
-		payloadData, err := m.Payload.Serialize(skipValidation)
+		payloadData, err := m.Payload.Serialize(deSeriMode)
 		if err != nil {
 			return nil, err
 		}
 
-		if !skipValidation {
+		if deSeriMode.HasMode(DeSeriModePerformValidation) {
 			// TODO: check payload length
 		}
 

@@ -30,7 +30,7 @@ func TestUnsignedTransaction_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tx := &iota.UnsignedTransaction{}
-			bytesRead, err := tx.Deserialize(tt.source, false)
+			bytesRead, err := tx.Deserialize(tt.source, iota.DeSeriModePerformValidation)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -56,7 +56,7 @@ func TestUnsignedTransaction_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			edData, err := tt.source.Serialize(false)
+			edData, err := tt.source.Serialize(iota.DeSeriModePerformValidation)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.target, edData)
 		})

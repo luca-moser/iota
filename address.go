@@ -41,8 +41,8 @@ func AddressSelector(typeByte byte) (Serializable, error) {
 // Defines a WOTS address.
 type WOTSAddress [WOTSAddressBytesLength]byte
 
-func (wotsAddr *WOTSAddress) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (wotsAddr *WOTSAddress) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, AddressWOTS); err != nil {
 			return 0, fmt.Errorf("unable to deserialize WOTS address: %w", err)
 		}
@@ -55,8 +55,8 @@ func (wotsAddr *WOTSAddress) Deserialize(data []byte, skipValidation bool) (int,
 	return WOTSAddressSerializedBytesSize, nil
 }
 
-func (wotsAddr *WOTSAddress) Serialize(skipValidation bool) (data []byte, err error) {
-	if !skipValidation {
+func (wotsAddr *WOTSAddress) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check T5B1 encoding
 	}
 	var b [OneByte + WOTSAddressBytesLength]byte
@@ -68,8 +68,8 @@ func (wotsAddr *WOTSAddress) Serialize(skipValidation bool) (data []byte, err er
 // Defines an Ed25519 address.
 type Ed25519Address [Ed25519AddressBytesLength]byte
 
-func (edAddr *Ed25519Address) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (edAddr *Ed25519Address) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, AddressEd25519); err != nil {
 			return 0, fmt.Errorf("unable to deserialize Ed25519 address: %w", err)
 		}
@@ -81,7 +81,7 @@ func (edAddr *Ed25519Address) Deserialize(data []byte, skipValidation bool) (int
 	return Ed25519AddressSerializedBytesSize, nil
 }
 
-func (edAddr *Ed25519Address) Serialize(skipValidation bool) (data []byte, err error) {
+func (edAddr *Ed25519Address) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
 	var b [OneByte + Ed25519AddressBytesLength]byte
 	b[0] = AddressEd25519
 	copy(b[OneByte:], edAddr[:])

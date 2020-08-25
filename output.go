@@ -50,8 +50,8 @@ type SigLockedSingleDeposit struct {
 	Amount uint64 `json:"amount"`
 }
 
-func (s *SigLockedSingleDeposit) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (s *SigLockedSingleDeposit) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, OutputSigLockedSingleDeposit); err != nil {
 			return 0, fmt.Errorf("unable to deserialize signature locked single deposit: %w", err)
 		}
@@ -64,7 +64,7 @@ func (s *SigLockedSingleDeposit) Deserialize(data []byte, skipValidation bool) (
 	bytesReadTotal := OneByte
 	data = data[OneByte:]
 
-	addr, addrBytesRead, err := DeserializeObject(data, skipValidation, AddressSelector)
+	addr, addrBytesRead, err := DeserializeObject(data, deSeriMode, AddressSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -77,7 +77,7 @@ func (s *SigLockedSingleDeposit) Deserialize(data []byte, skipValidation bool) (
 		return 0, fmt.Errorf("unable to deserialize deposit amount: %w", err)
 	}
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := outputAmountValidator(-1, s); err != nil {
 			return 0, err
 		}
@@ -86,8 +86,8 @@ func (s *SigLockedSingleDeposit) Deserialize(data []byte, skipValidation bool) (
 	return OneByte + addrBytesRead + UInt64ByteSize, nil
 }
 
-func (s *SigLockedSingleDeposit) Serialize(skipValidation bool) (data []byte, err error) {
-	if !skipValidation {
+func (s *SigLockedSingleDeposit) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := outputAmountValidator(-1, s); err != nil {
 			return nil, err
 		}
@@ -97,7 +97,7 @@ func (s *SigLockedSingleDeposit) Serialize(skipValidation bool) (data []byte, er
 	if err := b.WriteByte(OutputSigLockedSingleDeposit); err != nil {
 		return nil, err
 	}
-	addrBytes, err := s.Address.Serialize(skipValidation)
+	addrBytes, err := s.Address.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}

@@ -48,8 +48,8 @@ type SignedTransactionPayload struct {
 	UnlockBlocks Serializables `json:"unlock_blocks"`
 }
 
-func (s *SignedTransactionPayload) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (s *SignedTransactionPayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, SignedTransactionPayloadID); err != nil {
 			return 0, fmt.Errorf("unable to deserialize signed transaction payload: %w", err)
 		}
@@ -59,7 +59,7 @@ func (s *SignedTransactionPayload) Deserialize(data []byte, skipValidation bool)
 	bytesReadTotal := OneByte
 	data = data[OneByte:]
 
-	tx, txBytesRead, err := DeserializeObject(data, skipValidation, TransactionSelector)
+	tx, txBytesRead, err := DeserializeObject(data, deSeriMode, TransactionSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -71,7 +71,7 @@ func (s *SignedTransactionPayload) Deserialize(data []byte, skipValidation bool)
 
 	// advance to unlock blocks
 	data = data[txBytesRead:]
-	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, skipValidation, UnlockBlockSelector, &ArrayRules{
+	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, deSeriMode, UnlockBlockSelector, &ArrayRules{
 		Min:    inputCount,
 		Max:    inputCount,
 		MinErr: ErrUnlockBlocksMustMatchInputCount,
@@ -82,7 +82,7 @@ func (s *SignedTransactionPayload) Deserialize(data []byte, skipValidation bool)
 	}
 	bytesReadTotal += unlockBlocksByteRead
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := ValidateUnlockBlocks(unlockBlocks, UnlockBlocksSigUniqueAndRefValidator()); err != nil {
 			return 0, err
 		}
@@ -93,8 +93,8 @@ func (s *SignedTransactionPayload) Deserialize(data []byte, skipValidation bool)
 	return bytesReadTotal, nil
 }
 
-func (s *SignedTransactionPayload) Serialize(skipValidation bool) ([]byte, error) {
-	if !skipValidation {
+func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := ValidateUnlockBlocks(s.UnlockBlocks, UnlockBlocksSigUniqueAndRefValidator()); err != nil {
 			return nil, err
 		}
@@ -106,7 +106,7 @@ func (s *SignedTransactionPayload) Serialize(skipValidation bool) ([]byte, error
 	}
 
 	// write transaction
-	txBytes, err := s.Transaction.Serialize(skipValidation)
+	txBytes, err := s.Transaction.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (s *SignedTransactionPayload) Serialize(skipValidation bool) ([]byte, error
 	}
 
 	for i := range s.UnlockBlocks {
-		unlockBlockSer, err := s.UnlockBlocks[i].Serialize(skipValidation)
+		unlockBlockSer, err := s.UnlockBlocks[i].Serialize(deSeriMode)
 		if err != nil {
 			return nil, err
 		}

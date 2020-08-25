@@ -49,8 +49,8 @@ type UTXOInput struct {
 	TransactionOutputIndex byte `json:"transaction_output_index"`
 }
 
-func (u *UTXOInput) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (u *UTXOInput) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, InputUTXO); err != nil {
 			return 0, fmt.Errorf("unable to deserialize UTXO input: %w", err)
 		}
@@ -75,7 +75,7 @@ func (u *UTXOInput) Deserialize(data []byte, skipValidation bool) (int, error) {
 	outputIndexByte := byte(outputIndex)
 	u.TransactionOutputIndex = outputIndexByte
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := utxoInputRefBoundsValidator(-1, u); err != nil {
 			return 0, err
 		}
@@ -84,8 +84,8 @@ func (u *UTXOInput) Deserialize(data []byte, skipValidation bool) (int, error) {
 	return OneByte + TransactionIDLength + outputIndexByteSize, nil
 }
 
-func (u *UTXOInput) Serialize(skipValidation bool) (data []byte, err error) {
-	if !skipValidation {
+func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := utxoInputRefBoundsValidator(-1, u); err != nil {
 			return nil, err
 		}

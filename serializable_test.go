@@ -38,13 +38,13 @@ type A struct {
 	Key [aKeyLength]byte
 }
 
-func (a *A) Deserialize(data []byte, skipValidation bool) (int, error) {
+func (a *A) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
 	data = data[iota.OneByte:]
 	copy(a.Key[:], data[:aKeyLength])
 	return iota.OneByte + aKeyLength, nil
 }
 
-func (a *A) Serialize(skipValidation bool) ([]byte, error) {
+func (a *A) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
 	var bytes [iota.OneByte + aKeyLength]byte
 	bytes[0] = TypeA
 	copy(bytes[iota.OneByte:], a.Key[:])
@@ -66,13 +66,13 @@ type B struct {
 	Name [bNameLength]byte
 }
 
-func (b *B) Deserialize(data []byte, skipValidation bool) (int, error) {
+func (b *B) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
 	data = data[iota.OneByte:]
 	copy(b.Name[:], data[:bNameLength])
 	return iota.OneByte + bNameLength, nil
 }
 
-func (b *B) Serialize(skipValidation bool) ([]byte, error) {
+func (b *B) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
 	var bytes [iota.OneByte + bNameLength]byte
 	bytes[0] = TypeB
 	copy(bytes[iota.OneByte:], b.Name[:])
@@ -93,7 +93,7 @@ func randB() *B {
 func TestDeserializeA(t *testing.T) {
 	seriA := randSerializedA()
 	objA := &A{}
-	bytesRead, err := objA.Deserialize(seriA, false)
+	bytesRead, err := objA.Deserialize(seriA, iota.DeSeriModePerformValidation)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
 	assert.Equal(t, seriA[iota.OneByte:], objA.Key[:])
@@ -101,7 +101,7 @@ func TestDeserializeA(t *testing.T) {
 
 func TestDeserializeObject(t *testing.T) {
 	seriA := randSerializedA()
-	objA, bytesRead, err := iota.DeserializeObject(seriA, false, DummyTypeSelector)
+	objA, bytesRead, err := iota.DeserializeObject(seriA, iota.DeSeriModePerformValidation, DummyTypeSelector)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
 	assert.IsType(t, &A{}, objA)
@@ -116,7 +116,7 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	assert.NoError(t, buf.WriteByte(byte(len(originObjs))))
 
 	for _, seri := range originObjs {
-		seriBytes, err := seri.Serialize(false)
+		seriBytes, err := seri.Serialize(iota.DeSeriModePerformValidation)
 		assert.NoError(t, err)
 		written, err := buf.Write(seriBytes)
 		assert.NoError(t, err)
@@ -124,7 +124,7 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	seris, serisByteRead, err := iota.DeserializeArrayOfObjects(data, false, DummyTypeSelector, nil)
+	seris, serisByteRead, err := iota.DeserializeArrayOfObjects(data, iota.DeSeriModePerformValidation, DummyTypeSelector, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(data), serisByteRead)
 	assert.EqualValues(t, originObjs, seris)
@@ -169,6 +169,38 @@ func TestLexicalOrderedByteSlices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			sort.Sort(tt.source)
 			assert.Equal(t, tt.target, tt.source)
+		})
+	}
+}
+
+func TestSerializationMode_HasMode(t *testing.T) {
+	type args struct {
+		mode iota.DeSerializationMode
+	}
+	tests := []struct {
+		name string
+		sm   iota.DeSerializationMode
+		args args
+		want bool
+	}{
+		{
+			"has no validation",
+			iota.DeSeriModeNoValidation,
+			args{mode: iota.DeSeriModePerformValidation},
+			false,
+		},
+		{
+			"has validation",
+			iota.DeSeriModePerformValidation,
+			args{mode: iota.DeSeriModePerformValidation},
+			true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.sm.HasMode(tt.args.mode); got != tt.want {
+				t.Errorf("HasMode() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }

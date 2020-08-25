@@ -48,8 +48,8 @@ type UnsignedTransaction struct {
 	Payload Serializable `json:"payload"`
 }
 
-func (u *UnsignedTransaction) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, TransactionUnsigned); err != nil {
 			return 0, fmt.Errorf("unable to deserialize unsigned transaction: %w", err)
 		}
@@ -59,13 +59,13 @@ func (u *UnsignedTransaction) Deserialize(data []byte, skipValidation bool) (int
 	bytesReadTotal := OneByte
 	data = data[OneByte:]
 
-	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, skipValidation, InputSelector, &inputsArrayBound)
+	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, InputSelector, &inputsArrayBound)
 	if err != nil {
 		return 0, err
 	}
 	bytesReadTotal += inputBytesRead
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := ValidateInputs(inputs, InputsUTXORefsUniqueValidator()); err != nil {
 			return 0, err
 		}
@@ -75,13 +75,13 @@ func (u *UnsignedTransaction) Deserialize(data []byte, skipValidation bool) (int
 
 	// advance to outputs
 	data = data[inputBytesRead:]
-	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, skipValidation, OutputSelector, &outputsArrayBound)
+	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, OutputSelector, &outputsArrayBound)
 	if err != nil {
 		return 0, err
 	}
 	bytesReadTotal += outputBytesRead
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := ValidateOutputs(outputs, OutputsAddrUniqueValidator()); err != nil {
 			return 0, err
 		}
@@ -112,8 +112,8 @@ func (u *UnsignedTransaction) Deserialize(data []byte, skipValidation bool) (int
 	return bytesReadTotal, nil
 }
 
-func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err error) {
-	if !skipValidation {
+func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := ValidateInputs(u.Inputs, InputsUTXORefsUniqueValidator()); err != nil {
 			return nil, err
 		}
@@ -135,12 +135,12 @@ func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err e
 	}
 
 	var inputsLexicalOrderValidator LexicalOrderFunc
-	if !skipValidation && inputsArrayBound.ElementBytesLexicalOrder {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) && inputsArrayBound.ElementBytesLexicalOrder {
 		inputsLexicalOrderValidator = inputsArrayBound.LexicalOrderValidator()
 	}
 
 	for i := range u.Inputs {
-		inputSer, err := u.Inputs[i].Serialize(skipValidation)
+		inputSer, err := u.Inputs[i].Serialize(deSeriMode)
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize input at index %d: %w", i, err)
 		}
@@ -161,12 +161,12 @@ func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err e
 	}
 
 	var outputsLexicalOrderValidator LexicalOrderFunc
-	if !skipValidation && outputsArrayBound.ElementBytesLexicalOrder {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) && outputsArrayBound.ElementBytesLexicalOrder {
 		outputsLexicalOrderValidator = outputsArrayBound.LexicalOrderValidator()
 	}
 
 	for i := range u.Outputs {
-		outputSer, err := u.Outputs[i].Serialize(skipValidation)
+		outputSer, err := u.Outputs[i].Serialize(deSeriMode)
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize output at index %d: %w", i, err)
 		}
@@ -188,7 +188,7 @@ func (u *UnsignedTransaction) Serialize(skipValidation bool) (data []byte, err e
 		return b.Bytes(), nil
 	}
 
-	payloadSer, err := u.Payload.Serialize(skipValidation)
+	payloadSer, err := u.Payload.Serialize(deSeriMode)
 	if _, err := b.Write(payloadSer); err != nil {
 		return nil, err
 	}

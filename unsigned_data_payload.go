@@ -16,8 +16,8 @@ type UnsignedDataPayload struct {
 	Data []byte `json:"data"`
 }
 
-func (u *UnsignedDataPayload) Deserialize(data []byte, skipValidation bool) (int, error) {
-	if !skipValidation {
+func (u *UnsignedDataPayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := checkType(data, UnsignedDataPayloadID); err != nil {
 			return 0, fmt.Errorf("unable to deserialize unsigned data payload: %w", err)
 		}
@@ -33,7 +33,7 @@ func (u *UnsignedDataPayload) Deserialize(data []byte, skipValidation bool) (int
 		return 0, err
 	}
 
-	if !skipValidation {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check data length
 	}
 
@@ -49,8 +49,8 @@ func (u *UnsignedDataPayload) Deserialize(data []byte, skipValidation bool) (int
 	return OneByte + dataLengthBytesRead + int(dataLength), nil
 }
 
-func (u *UnsignedDataPayload) Serialize(skipValidation bool) ([]byte, error) {
-	if !skipValidation {
+func (u *UnsignedDataPayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check data length
 	}
 	var b bytes.Buffer

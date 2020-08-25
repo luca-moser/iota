@@ -46,7 +46,7 @@ func TestSigLockedSingleDeposit_Deserialize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dep := &iota.SigLockedSingleDeposit{}
-			bytesRead, err := dep.Deserialize(tt.source, false)
+			bytesRead, err := dep.Deserialize(tt.source, iota.DeSeriModePerformValidation)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
@@ -73,7 +73,7 @@ func TestSigLockedSingleDeposit_Serialize(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := tt.source.Serialize(false)
+			data, err := tt.source.Serialize(iota.DeSeriModePerformValidation)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
