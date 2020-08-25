@@ -9,7 +9,7 @@ import (
 // Serializable is something which knows how to serialize/deserialize itself from/into bytes.
 // This is almost analogous to BinaryMarshaler/BinaryUnmarshaler.
 type Serializable interface {
-	// Deserialize deserializes the given data into the object and returns the amount of bytes consumed from data.
+	// Deserialize deserializes the given data (by copying) into the object and returns the amount of bytes consumed from data.
 	// If the passed data is not big enough for deserialization, an error must be returned.
 	// During deserialization the data is checked for validity and can be optionally turned off.
 	Deserialize(data []byte, skipValidation bool) (int, error)
@@ -142,7 +142,7 @@ func DeserializeArrayOfObjects(data []byte, skipValidation bool, serSel Serializ
 // The data is expected to start with the type denoting byte.
 func DeserializeObject(data []byte, skipValidation bool, serSel SerializableSelectorFunc) (Serializable, int, error) {
 	if len(data) < 2 {
-		return nil, 0, ErrDeserializationDataTooSmall
+		return nil, 0, ErrDeserializationNotEnoughData
 	}
 	seri, err := serSel(data[0])
 	if err != nil {
