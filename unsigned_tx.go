@@ -129,7 +129,6 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(u.Inputs)))
-
 	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}

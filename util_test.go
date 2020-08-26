@@ -27,6 +27,13 @@ func randBytes(length int) []byte {
 	return b
 }
 
+func randTxHash() [iota.TransactionIDLength]byte {
+	var h [iota.TransactionIDLength]byte
+	b := randBytes(32)
+	copy(h[:], b)
+	return h
+}
+
 func randWOTSAddr() (*iota.WOTSAddress, []byte) {
 	wotsAddr := &iota.WOTSAddress{}
 	addr := randBytes(iota.WOTSAddressBytesLength)
