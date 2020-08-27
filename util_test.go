@@ -58,6 +58,24 @@ func randEd25519Signature() (*iota.Ed25519Signature, []byte) {
 	return edSig, append(b, sig...)
 }
 
+func randLSTransactionUnspentOutputs(outputsCount int) *iota.LSTransactionUnspentOutputs {
+	return &iota.LSTransactionUnspentOutputs{
+		TransactionHash: randTxHash(),
+		UnspentOutputs: func() []*iota.LSUnspentOutput {
+			outputs := make([]*iota.LSUnspentOutput, outputsCount)
+			for i := 0; i < outputsCount; i++ {
+				addr, _ := randEd25519Addr()
+				outputs[i] = &iota.LSUnspentOutput{
+					Index:   byte(i),
+					Address: addr,
+					Value:   uint64(rand.Intn(1000000) + 1),
+				}
+			}
+			return outputs
+		}(),
+	}
+}
+
 func randEd25519SignatureUnlockBlock() (*iota.SignatureUnlockBlock, []byte) {
 	edSig, edSigData := randEd25519Signature()
 	block := &iota.SignatureUnlockBlock{Signature: edSig}

@@ -10,6 +10,7 @@ const (
 	MilestonePayloadID                  = 1
 	MilestoneInclusionMerkleProofLength = 64
 	MilestoneSignatureLength            = 64
+	MilestoneHashLength                 = 32
 	MilestonePayloadMinSize             = OneByte + OneByte + UInt64ByteSize + MilestoneInclusionMerkleProofLength + MilestoneSignatureLength
 )
 
