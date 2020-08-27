@@ -55,7 +55,7 @@ func (s *LSTransactionUnspentOutputs) Serialize(deSeriMode DeSerializationMode) 
 
 // LSUnspentOutput defines an unspent output.
 type LSUnspentOutput struct {
-	Index   byte         `json:"index"`
+	Index   uint16       `json:"index"`
 	Address Serializable `json:"address"`
 	Value   uint64       `json:"value"`
 }
@@ -66,7 +66,7 @@ func (s *LSUnspentOutput) Deserialize(data []byte, deSeriMode DeSerializationMod
 
 func (s *LSUnspentOutput) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	var b bytes.Buffer
-	if err := b.WriteByte(s.Index); err != nil {
+	if err := binary.Write(&b, binary.LittleEndian, s.Index); err != nil {
 		return nil, err
 	}
 	addrData, err := s.Address.Serialize(deSeriMode)
@@ -281,15 +281,18 @@ func StreamLocalSnapshotDataFrom(reader io.Reader, compReaderInit CompressionRea
 
 		for j := uint16(0); j < outputsCount; j++ {
 			output := &LSUnspentOutput{}
-			var indexAndAddrType [2]byte
 
-			// look ahead index and address type
-			if _, err := io.ReadFull(readerToUse, indexAndAddrType[:]); err != nil {
+			if err := binary.Read(readerToUse, binary.LittleEndian, &output.Index); err != nil {
 				return err
 			}
-			output.Index = indexAndAddrType[0]
 
-			addr, err := AddressSelector(indexAndAddrType[1])
+			// look ahead address type
+			var addrType [OneByte]byte
+			if _, err := io.ReadFull(readerToUse, addrType[:]); err != nil {
+				return err
+			}
+
+			addr, err := AddressSelector(addrType[0])
 			if err != nil {
 				return err
 			}
@@ -309,7 +312,7 @@ func StreamLocalSnapshotDataFrom(reader io.Reader, compReaderInit CompressionRea
 				return err
 			}
 
-			if _, err := addr.Deserialize(append([]byte{indexAndAddrType[1]}, addrDataWithoutType...), DeSeriModePerformValidation); err != nil {
+			if _, err := addr.Deserialize(append([]byte{addrType[0]}, addrDataWithoutType...), DeSeriModePerformValidation); err != nil {
 				return err
 			}
 			output.Address = addr

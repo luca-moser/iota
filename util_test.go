@@ -66,7 +66,7 @@ func randLSTransactionUnspentOutputs(outputsCount int) *iota.LSTransactionUnspen
 			for i := 0; i < outputsCount; i++ {
 				addr, _ := randEd25519Addr()
 				outputs[i] = &iota.LSUnspentOutput{
-					Index:   byte(i),
+					Index:   uint16(i),
 					Address: addr,
 					Value:   uint64(rand.Intn(1000000) + 1),
 				}
