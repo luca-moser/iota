@@ -3,7 +3,6 @@ package iota
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"io"
 )
 
