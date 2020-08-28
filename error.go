@@ -1,6 +1,7 @@
 package iota
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 )
@@ -19,12 +20,10 @@ var (
 	ErrDeserializationNotAllConsumed = errors.New("not all data has been consumed but should have been")
 )
 
-func checkType(data []byte, should byte) error {
-	if data == nil || len(data) == 0 {
-		return fmt.Errorf("%w: can not evaluate type", ErrDeserializationNotEnoughData)
-	}
-	if data[0] != should {
-		return fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, should, data[0])
+func checkType(data []byte, shouldType uint32) error {
+	actualType := binary.LittleEndian.Uint32(data)
+	if actualType != shouldType {
+		return fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, shouldType, actualType)
 	}
 	return nil
 }

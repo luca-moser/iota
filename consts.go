@@ -19,7 +19,12 @@ const (
 	UInt64ByteSize = 8
 	// The byte size of a float64.
 	Float64ByteSize = 8
-
+	// The size of a type denotation.
+	TypeDenotationByteSize = UInt32ByteSize
+	// The size of array lengths denoting bytes.
+	ArrayLengthByteSize = UInt16ByteSize
+	// The size of the payload length denoting bytes.
+	PayloadLengthByteSize = UInt16ByteSize
 	// The IOTA token supply.
 	TokenSupply = 2_779_530_283_277_761
 )

@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -9,21 +8,21 @@ import (
 )
 
 // Defines the type of outputs.
-type OutputType = byte
+type OutputType = uint32
 
 const (
 	// Denotes a type of output which is locked by a signature and deposits onto a single address.
 	OutputSigLockedSingleDeposit OutputType = iota
 
 	// The size of a sig locked single deposit containing a WOTS address as its deposit address.
-	SigLockedSingleDepositWOTSAddrBytesSize = OneByte + WOTSAddressSerializedBytesSize + UInt64ByteSize
+	SigLockedSingleDepositWOTSAddrBytesSize = TypeDenotationByteSize + WOTSAddressSerializedBytesSize + UInt64ByteSize
 	// The size of a sig locked single deposit containing an Ed25519 address as its deposit address.
-	SigLockedSingleDepositEd25519AddrBytesSize = OneByte + Ed25519AddressSerializedBytesSize + UInt64ByteSize
+	SigLockedSingleDepositEd25519AddrBytesSize = TypeDenotationByteSize + Ed25519AddressSerializedBytesSize + UInt64ByteSize
 
 	// Defines the minimum size a sig locked single deposit must be.
 	SigLockedSingleDepositBytesMinSize = SigLockedSingleDepositEd25519AddrBytesSize
 	// Defines the offset at which the address portion within a sig locked single deposit begins.
-	SigLockedSingleDepositAddressOffset = 1
+	SigLockedSingleDepositAddressOffset = TypeDenotationByteSize
 )
 
 var (
@@ -31,13 +30,13 @@ var (
 )
 
 // OutputSelector implements SerializableSelectorFunc for output types.
-func OutputSelector(typeByte byte) (Serializable, error) {
+func OutputSelector(outputType uint32) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch outputType {
 	case OutputSigLockedSingleDeposit:
 		seri = &SigLockedSingleDeposit{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownOutputType, typeByte)
+		return nil, fmt.Errorf("%w: type %d", ErrUnknownOutputType, outputType)
 	}
 	return seri, nil
 }
@@ -61,21 +60,18 @@ func (s *SigLockedSingleDeposit) Deserialize(data []byte, deSeriMode DeSerializa
 		}
 	}
 
-	bytesReadTotal := OneByte
-	data = data[OneByte:]
+	data = data[TypeDenotationByteSize:]
 
 	addr, addrBytesRead, err := DeserializeObject(data, deSeriMode, AddressSelector)
 	if err != nil {
 		return 0, err
 	}
-	bytesReadTotal += addrBytesRead
 	s.Address = addr
+
 	data = data[addrBytesRead:]
 
 	// read amount of the deposit
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &s.Amount); err != nil {
-		return 0, fmt.Errorf("unable to deserialize deposit amount: %w", err)
-	}
+	s.Amount = binary.LittleEndian.Uint64(data)
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := outputAmountValidator(-1, s); err != nil {
@@ -83,7 +79,7 @@ func (s *SigLockedSingleDeposit) Deserialize(data []byte, deSeriMode DeSerializa
 		}
 	}
 
-	return OneByte + addrBytesRead + UInt64ByteSize, nil
+	return TypeDenotationByteSize + addrBytesRead + UInt64ByteSize, nil
 }
 
 func (s *SigLockedSingleDeposit) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
@@ -93,21 +89,24 @@ func (s *SigLockedSingleDeposit) Serialize(deSeriMode DeSerializationMode) (data
 		}
 	}
 
-	var b bytes.Buffer
-	if err := b.WriteByte(OutputSigLockedSingleDeposit); err != nil {
-		return nil, err
+	var b []byte
+	switch s.Address.(type) {
+	case *WOTSAddress:
+		b = make([]byte, SigLockedSingleDepositWOTSAddrBytesSize)
+	case *Ed25519Address:
+		b = make([]byte, SigLockedSingleDepositEd25519AddrBytesSize)
+	default:
+		return nil, ErrUnknownAddrType
 	}
+
+	binary.LittleEndian.PutUint32(b, OutputSigLockedSingleDeposit)
 	addrBytes, err := s.Address.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := b.Write(addrBytes); err != nil {
-		return nil, err
-	}
-	if err := binary.Write(&b, binary.LittleEndian, s.Amount); err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
+	copy(b[TypeDenotationByteSize:], addrBytes)
+	binary.LittleEndian.PutUint64(b[len(b)-UInt64ByteSize:], s.Amount)
+	return b, nil
 }
 
 // OutputsValidatorFunc which given the index of an output and the output itself, runs validations and returns an error if any should fail.
@@ -131,7 +130,7 @@ func OutputsAddrUniqueValidator() OutputsValidatorFunc {
 		}
 		k := b.String()
 		if j, has := set[k]; has {
-			return fmt.Errorf("%w: output %d and %d share the same  address", ErrOutputAddrNotUnique, j, index)
+			return fmt.Errorf("%w: output %d and %d share the same address", ErrOutputAddrNotUnique, j, index)
 		}
 		set[k] = index
 		return nil

@@ -1,20 +1,22 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 )
 
 // Defines a type of unlock block.
-type UnlockBlockType = byte
+type UnlockBlockType = uint32
 
 const (
 	// Denotes a signature unlock block.
 	UnlockBlockSignature UnlockBlockType = iota
 	// Denotes a reference unlock block.
 	UnlockBlockReference
+
+	SignatureUnlockBlockMinSize = TypeDenotationByteSize
+	ReferenceUnlockBlockSize    = TypeDenotationByteSize + UInt16ByteSize
 )
 
 var (
@@ -24,15 +26,15 @@ var (
 )
 
 // UnlockBlockSelector implements SerializableSelectorFunc for unlock block types.
-func UnlockBlockSelector(typeByte byte) (Serializable, error) {
+func UnlockBlockSelector(unlockBlockType uint32) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch unlockBlockType {
 	case UnlockBlockSignature:
 		seri = &SignatureUnlockBlock{}
 	case UnlockBlockReference:
 		seri = &ReferenceUnlockBlock{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownUnlockBlockType, typeByte)
+		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownUnlockBlockType, unlockBlockType)
 	}
 	return seri, nil
 }
@@ -47,11 +49,14 @@ func (s *SignatureUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializati
 		if err := checkType(data, UnlockBlockSignature); err != nil {
 			return 0, fmt.Errorf("unable to deserialize signature unlock block: %w", err)
 		}
+		if err := checkMinByteLength(SignatureUnlockBlockMinSize, len(data)); err != nil {
+			return 0, err
+		}
 	}
 
 	// skip type byte
-	bytesReadTotal := OneByte
-	data = data[OneByte:]
+	bytesReadTotal := TypeDenotationByteSize
+	data = data[TypeDenotationByteSize:]
 
 	sig, sigBytesRead, err := DeserializeObject(data, deSeriMode, SignatureSelector)
 	if err != nil {
@@ -68,12 +73,14 @@ func (s *SignatureUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte{UnlockBlockSignature}, sigBytes...), nil
+	b := make([]byte, TypeDenotationByteSize)
+	binary.LittleEndian.PutUint32(b, UnlockBlockSignature)
+	return append(b, sigBytes...), nil
 }
 
 // ReferenceUnlockBlock is an unlock block which references a previous unlock block.
 type ReferenceUnlockBlock struct {
-	Reference uint64 `json:"reference"`
+	Reference uint16 `json:"reference"`
 }
 
 func (r *ReferenceUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
@@ -81,20 +88,20 @@ func (r *ReferenceUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializati
 		if err := checkType(data, UnlockBlockReference); err != nil {
 			return 0, fmt.Errorf("unable to deserialize reference unlock block: %w", err)
 		}
+		if err := checkMinByteLength(ReferenceUnlockBlockSize, len(data)); err != nil {
+			return 0, err
+		}
 	}
-	data = data[OneByte:]
-	reference, referenceByteSize, err := ReadUvarint(bytes.NewReader(data))
-	if err != nil {
-		return 0, err
-	}
-	r.Reference = reference
-	return OneByte + referenceByteSize, nil
+	data = data[TypeDenotationByteSize:]
+	r.Reference = binary.LittleEndian.Uint16(data)
+	return ReferenceUnlockBlockSize, nil
 }
 
 func (r *ReferenceUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, r.Reference)
-	return append([]byte{UnlockBlockReference}, varIntBuf[:bytesWritten]...), nil
+	var b [ReferenceUnlockBlockSize]byte
+	binary.LittleEndian.PutUint32(b[:], UnlockBlockReference)
+	binary.LittleEndian.PutUint16(b[TypeDenotationByteSize:], r.Reference)
+	return b[:], nil
 }
 
 // UnlockBlockValidatorFunc which given the index of an unlock block and the unlock block itself, runs validations and returns an error if any should fail.

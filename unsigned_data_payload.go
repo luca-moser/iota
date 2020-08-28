@@ -1,14 +1,13 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 )
 
 const (
-	UnsignedDataPayloadID      = 2
-	UnsignedDataPayloadMinSize = 2 * OneByte
+	UnsignedDataPayloadID      uint32 = 2
+	UnsignedDataPayloadMinSize        = TypeDenotationByteSize + ArrayLengthByteSize
 )
 
 // UnsignedDataPayload is a payload which holds a blob of unspecific data.
@@ -25,20 +24,17 @@ func (u *UnsignedDataPayload) Deserialize(data []byte, deSeriMode DeSerializatio
 			return 0, err
 		}
 	}
-	data = data[OneByte:]
+	data = data[TypeDenotationByteSize:]
 
 	// read data length
-	dataLength, dataLengthBytesRead, err := ReadUvarint(bytes.NewReader(data))
-	if err != nil {
-		return 0, err
-	}
+	dataLength := binary.LittleEndian.Uint16(data)
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check data length
 	}
 
-	data = data[dataLengthBytesRead:]
-	bytesAvailable := uint64(len(data)) - dataLength
+	data = data[ArrayLengthByteSize:]
+	bytesAvailable := uint32(len(data)) - uint32(dataLength)
 	if bytesAvailable < 0 {
 		return 0, fmt.Errorf("%w: unsigned data payload length denotes too many bytes (%d bytes)", ErrDeserializationNotEnoughData, dataLength)
 	}
@@ -46,29 +42,18 @@ func (u *UnsignedDataPayload) Deserialize(data []byte, deSeriMode DeSerializatio
 	u.Data = make([]byte, dataLength)
 	copy(u.Data, data[:dataLength])
 
-	return OneByte + dataLengthBytesRead + int(dataLength), nil
+	return TypeDenotationByteSize + ArrayLengthByteSize + int(dataLength), nil
 }
 
 func (u *UnsignedDataPayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check data length
 	}
-	var b bytes.Buffer
-	if err := b.WriteByte(UnsignedDataPayloadID); err != nil {
-		return nil, err
-	}
 
-	// write data length
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(u.Data)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
+	b := make([]byte, TypeDenotationByteSize+ArrayLengthByteSize+len(u.Data))
+	binary.LittleEndian.PutUint32(b, UnsignedDataPayloadID)
+	binary.LittleEndian.PutUint16(b[TypeDenotationByteSize:], uint16(len(u.Data)))
+	copy(b[TypeDenotationByteSize+ArrayLengthByteSize:], u.Data)
 
-	// write data
-	if _, err := b.Write(u.Data); err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	return b, nil
 }

@@ -2,6 +2,7 @@ package iota_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"sort"
 	"testing"
@@ -11,19 +12,19 @@ import (
 )
 
 const (
-	TypeA       = 0
-	TypeB       = 1
-	aKeyLength  = 16
-	bNameLength = 32
+	TypeA       uint32 = 0
+	TypeB       uint32 = 1
+	aKeyLength         = 16
+	bNameLength        = 32
 )
 
 var (
 	ErrUnknownDummyType = errors.New("unknown example type")
 )
 
-func DummyTypeSelector(typeByte byte) (iota.Serializable, error) {
+func DummyTypeSelector(dummyType uint32) (iota.Serializable, error) {
 	var seri iota.Serializable
-	switch typeByte {
+	switch dummyType {
 	case TypeA:
 		seri = &A{}
 	case TypeB:
@@ -39,21 +40,24 @@ type A struct {
 }
 
 func (a *A) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
-	data = data[iota.OneByte:]
+	data = data[iota.TypeDenotationByteSize:]
 	copy(a.Key[:], data[:aKeyLength])
-	return iota.OneByte + aKeyLength, nil
+	return iota.TypeDenotationByteSize + aKeyLength, nil
 }
 
 func (a *A) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
-	var bytes [iota.OneByte + aKeyLength]byte
-	bytes[0] = TypeA
-	copy(bytes[iota.OneByte:], a.Key[:])
-	return bytes[:], nil
+	var b [iota.TypeDenotationByteSize + aKeyLength]byte
+	binary.LittleEndian.PutUint32(b[:], TypeA)
+	copy(b[iota.TypeDenotationByteSize:], a.Key[:])
+	return b[:], nil
 }
 
 func randSerializedA() []byte {
+	var b [iota.TypeDenotationByteSize + aKeyLength]byte
+	binary.LittleEndian.PutUint32(b[:], TypeA)
 	keyData := randBytes(aKeyLength)
-	return append([]byte{TypeA}, keyData...)
+	copy(b[iota.TypeDenotationByteSize:], keyData)
+	return b[:]
 }
 
 func randA() *A {
@@ -67,21 +71,24 @@ type B struct {
 }
 
 func (b *B) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
-	data = data[iota.OneByte:]
+	data = data[iota.TypeDenotationByteSize:]
 	copy(b.Name[:], data[:bNameLength])
-	return iota.OneByte + bNameLength, nil
+	return iota.TypeDenotationByteSize + bNameLength, nil
 }
 
 func (b *B) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
-	var bytes [iota.OneByte + bNameLength]byte
-	bytes[0] = TypeB
-	copy(bytes[iota.OneByte:], b.Name[:])
-	return bytes[:], nil
+	var bf [iota.TypeDenotationByteSize + bNameLength]byte
+	binary.LittleEndian.PutUint32(bf[:], TypeB)
+	copy(bf[iota.TypeDenotationByteSize:], b.Name[:])
+	return bf[:], nil
 }
 
 func randSerializedB() []byte {
+	var bf [iota.TypeDenotationByteSize + bNameLength]byte
+	binary.LittleEndian.PutUint32(bf[:], TypeB)
 	nameData := randBytes(bNameLength)
-	return append([]byte{TypeB}, nameData...)
+	copy(bf[iota.TypeDenotationByteSize:], nameData)
+	return bf[:]
 }
 
 func randB() *B {
@@ -96,7 +103,7 @@ func TestDeserializeA(t *testing.T) {
 	bytesRead, err := objA.Deserialize(seriA, iota.DeSeriModePerformValidation)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
-	assert.Equal(t, seriA[iota.OneByte:], objA.Key[:])
+	assert.Equal(t, seriA[iota.TypeDenotationByteSize:], objA.Key[:])
 }
 
 func TestDeserializeObject(t *testing.T) {
@@ -105,7 +112,7 @@ func TestDeserializeObject(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
 	assert.IsType(t, &A{}, objA)
-	assert.Equal(t, seriA[iota.OneByte:], objA.(*A).Key[:])
+	assert.Equal(t, seriA[iota.TypeDenotationByteSize:], objA.(*A).Key[:])
 }
 
 func TestDeserializeArrayOfObjects(t *testing.T) {
@@ -113,7 +120,7 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	originObjs := []iota.Serializable{
 		randA(), randA(), randB(), randA(), randB(), randB(),
 	}
-	assert.NoError(t, buf.WriteByte(byte(len(originObjs))))
+	assert.NoError(t, binary.Write(&buf, binary.LittleEndian, uint16(len(originObjs))))
 
 	for _, seri := range originObjs {
 		seriBytes, err := seri.Serialize(iota.DeSeriModePerformValidation)

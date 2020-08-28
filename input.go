@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -9,7 +8,7 @@ import (
 )
 
 // Defines the type of inputs.
-type InputType = byte
+type InputType = uint32
 
 const (
 	// A type of input which references an unspent transaction output.
@@ -17,6 +16,9 @@ const (
 
 	RefUTXOIndexMin = 0
 	RefUTXOIndexMax = 126
+
+	// input type + tx id + index
+	UTXOInputSize = TypeDenotationByteSize + TransactionIDLength + UInt16ByteSize
 )
 
 var (
@@ -24,56 +26,43 @@ var (
 )
 
 // InputSelector implements SerializableSelectorFunc for input types.
-func InputSelector(typeByte byte) (Serializable, error) {
+func InputSelector(inputType uint32) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch inputType {
 	case InputUTXO:
 		seri = &UTXOInput{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownInputType, typeByte)
+		return nil, fmt.Errorf("%w: type %d", ErrUnknownInputType, inputType)
 	}
 	return seri, nil
 }
-
-// input type + tx id + index
-const UTXOInputMinSize = OneByte + TransactionIDLength + OneByte
-
-// input type + tx id + max index
-const UTXOInputMaxSize = OneByte + TransactionIDLength + binary.MaxVarintLen64
 
 // UTXOInput references an unspent transaction output by the signed transaction payload's hash and the corresponding index of the output.
 type UTXOInput struct {
 	// The transaction ID of the referenced transaction.
 	TransactionID [TransactionIDLength]byte `json:"transaction_id"`
 	// The output index of the output on the referenced transaction.
-	TransactionOutputIndex byte `json:"transaction_output_index"`
+	TransactionOutputIndex uint16 `json:"transaction_output_index"`
 }
 
 func (u *UTXOInput) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
+		if err := checkMinByteLength(UTXOInputSize, len(data)); err != nil {
+			return 0, fmt.Errorf("invalid utxo input bytes: %w", err)
+		}
 		if err := checkType(data, InputUTXO); err != nil {
 			return 0, fmt.Errorf("unable to deserialize UTXO input: %w", err)
 		}
-
-		if err := checkMinByteLength(UTXOInputMinSize, len(data)); err != nil {
-			return 0, fmt.Errorf("invalid utxo input bytes: %w", err)
-		}
 	}
 
-	// skip type
-	data = data[OneByte:]
+	data = data[TypeDenotationByteSize:]
 
-	// transaction id
+	// read transaction id
 	copy(u.TransactionID[:], data[:TransactionIDLength])
+	data = data[TransactionIDLength:]
 
 	// output index
-	outputIndex, outputIndexByteSize, err := ReadUvarint(bytes.NewReader(data[TransactionIDLength:]))
-	if err != nil {
-		return 0, fmt.Errorf("%w: unable to read output index", err)
-	}
-
-	outputIndexByte := byte(outputIndex)
-	u.TransactionOutputIndex = outputIndexByte
+	u.TransactionOutputIndex = binary.LittleEndian.Uint16(data)
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := utxoInputRefBoundsValidator(-1, u); err != nil {
@@ -81,7 +70,7 @@ func (u *UTXOInput) Deserialize(data []byte, deSeriMode DeSerializationMode) (in
 		}
 	}
 
-	return OneByte + TransactionIDLength + outputIndexByteSize, nil
+	return UTXOInputSize, nil
 }
 
 func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
@@ -91,20 +80,11 @@ func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err 
 		}
 	}
 
-	var b bytes.Buffer
-	if err := b.WriteByte(InputUTXO); err != nil {
-		return nil, err
-	}
-
-	if _, err := b.Write(u.TransactionID[:]); err != nil {
-		return nil, err
-	}
-
-	if err := b.WriteByte(u.TransactionOutputIndex); err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	var b [UTXOInputSize]byte
+	binary.LittleEndian.PutUint32(b[:], InputUTXO)
+	copy(b[TypeDenotationByteSize:], u.TransactionID[:])
+	binary.LittleEndian.PutUint16(b[UTXOInputSize-UInt16ByteSize:], u.TransactionOutputIndex)
+	return b[:], nil
 }
 
 // InputsValidatorFunc which given the index of an input and the input itself, runs validations and returns an error if any should fail.
@@ -118,7 +98,7 @@ func InputsUTXORefsUniqueValidator() InputsValidatorFunc {
 		if _, err := b.Write(input.TransactionID[:]); err != nil {
 			return err
 		}
-		if err := b.WriteByte(input.TransactionOutputIndex); err != nil {
+		if err := binary.Write(&b, binary.LittleEndian, input.TransactionOutputIndex); err != nil {
 			return err
 		}
 		k := b.String()

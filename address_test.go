@@ -42,7 +42,7 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.wotsAddrData), bytesRead)
-			assert.Equal(t, tt.wotsAddrData[iota.OneByte:], wotsAddr[:])
+			assert.Equal(t, tt.wotsAddrData[iota.TypeDenotationByteSize:], wotsAddr[:])
 		})
 	}
 }
@@ -101,7 +101,7 @@ func TestEd25519Address_Deserialize(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.edAddrData), bytesRead)
-			assert.Equal(t, tt.edAddrData[iota.OneByte:], edAddr[:])
+			assert.Equal(t, tt.edAddrData[iota.TypeDenotationByteSize:], edAddr[:])
 		})
 	}
 }

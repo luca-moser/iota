@@ -24,7 +24,7 @@ type Serializables []Serializable
 
 // SerializableSelectorFunc is a function that given a type byte, returns an empty instance of the given underlying type.
 // If the type doesn't resolve, an error is returned.
-type SerializableSelectorFunc func(typeByte byte) (Serializable, error)
+type SerializableSelectorFunc func(ty uint32) (Serializable, error)
 
 // DeSerializationMode defines the mode of de/serialization.
 type DeSerializationMode byte
@@ -45,9 +45,9 @@ func (sm DeSerializationMode) HasMode(mode DeSerializationMode) bool {
 // Min and Max at 0 define an unbounded array.
 type ArrayRules struct {
 	// The min array bound.
-	Min uint64
+	Min uint16
 	// The max array bound.
-	Max uint64
+	Max uint16
 	// The error returned if the min bound is violated.
 	MinErr error
 	// The error returned if the max bound is violated.
@@ -59,7 +59,7 @@ type ArrayRules struct {
 }
 
 // CheckBounds checks whether the given count violates the array bounds.
-func (ar *ArrayRules) CheckBounds(count uint64) error {
+func (ar *ArrayRules) CheckBounds(count uint16) error {
 	if ar.Min != 0 && count < ar.Min {
 		return fmt.Errorf("%w: min is %d but count is %d", ar.MinErr, ar.Min, count)
 	}
@@ -112,13 +112,11 @@ func (l LexicalOrderedByteSlices) Swap(i, j int) {
 // An optional ArrayRules can be passed in to return an error in case it is violated.
 func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, serSel SerializableSelectorFunc, arrayRules *ArrayRules) (Serializables, int, error) {
 	var bytesReadTotal int
-	seriCount, seriCountBytesSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
-	if err != nil {
-		return nil, 0, err
-	}
-	bytesReadTotal += seriCountBytesSize
 
-	if arrayRules != nil {
+	seriCount := binary.LittleEndian.Uint16(data)
+	bytesReadTotal += ArrayLengthByteSize
+
+	if arrayRules != nil && deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := arrayRules.CheckBounds(seriCount); err != nil {
 			return nil, 0, err
 		}
@@ -126,7 +124,7 @@ func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, serS
 
 	// advance to objects
 	var seris Serializables
-	data = data[seriCountBytesSize:]
+	data = data[ArrayLengthByteSize:]
 
 	var lexicalOrderValidator LexicalOrderFunc
 	if arrayRules != nil && arrayRules.ElementBytesLexicalOrder {
@@ -154,12 +152,12 @@ func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, serS
 }
 
 // DeserializeObject deserializes the given data into a Serializable.
-// The data is expected to start with the type denoting byte.
+// The data is expected to start with the type denotation.
 func DeserializeObject(data []byte, deSeriMode DeSerializationMode, serSel SerializableSelectorFunc) (Serializable, int, error) {
-	if len(data) < 2 {
+	if len(data) < TypeDenotationByteSize+1 {
 		return nil, 0, ErrDeserializationNotEnoughData
 	}
-	seri, err := serSel(data[0])
+	seri, err := serSel(binary.LittleEndian.Uint32(data))
 	if err != nil {
 		return nil, 0, err
 	}

@@ -32,6 +32,9 @@ type test struct {
 }
 
 func TestStreamLocalSnapshotDataToAndFrom(t *testing.T) {
+	if testing.Short() {
+		return
+	}
 	rand.Seed(346587549867)
 
 	originHeader := &iota.LSFileHeader{
