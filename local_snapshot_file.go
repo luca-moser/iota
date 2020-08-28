@@ -13,10 +13,6 @@ const (
 	SolidEntryPointHashLength = 32
 )
 
-var (
-	ErrLocalSnapshotIntegrityHashMismatch = errors.New("computed local snapshot integrity hash does not match")
-)
-
 // LSTransactionUnspentOutputs are the unspent outputs under the same transaction hash.
 type LSTransactionUnspentOutputs struct {
 	TransactionHash [32]byte           `json:"transaction_hash"`
