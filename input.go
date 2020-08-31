@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -81,24 +80,17 @@ func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err 
 		}
 	}
 
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], InputUTXO)
-
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	buf, varintBuf, _ := WriteTypeHeader(InputUTXO)
+	if _, err := buf.Write(u.TransactionID[:]); err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(u.TransactionID[:]); err != nil {
+	bytesWritten := binary.PutUvarint(varintBuf[:], u.TransactionOutputIndex)
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
-	bytesWritten = binary.PutUvarint(varintBuf[:], u.TransactionOutputIndex)
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
 
 // InputsValidatorFunc which given the index of an input and the input itself, runs validations and returns an error if any should fail.
@@ -121,7 +113,6 @@ func InputsUTXORefsUniqueValidator() InputsValidatorFunc {
 		}
 		set[k] = index
 		return nil
-
 	}
 }
 

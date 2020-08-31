@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -77,27 +76,20 @@ func (s *SigLockedSingleDeposit) Serialize(deSeriMode DeSerializationMode) (data
 		}
 	}
 
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], OutputSigLockedSingleDeposit)
-
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
-
+	buf, _, _ := WriteTypeHeader(OutputSigLockedSingleDeposit)
 	addrBytes, err := s.Address.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(addrBytes); err != nil {
+	if _, err := buf.Write(addrBytes); err != nil {
 		return nil, err
 	}
 
-	if err := binary.Write(&b, binary.LittleEndian, s.Amount); err != nil {
+	if err := binary.Write(buf, binary.LittleEndian, s.Amount); err != nil {
 		return nil, err
 	}
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
 
 // OutputsValidatorFunc which given the index of an output and the output itself, runs validations and returns an error if any should fail.

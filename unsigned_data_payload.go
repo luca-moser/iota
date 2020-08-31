@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 )
@@ -44,26 +43,20 @@ func (u *UnsignedDataPayload) Deserialize(data []byte, deSeriMode DeSerializatio
 }
 
 func (u *UnsignedDataPayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], UnsignedDataPayloadID)
-
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
+	buf, varintBuf, _ := WriteTypeHeader(UnsignedDataPayloadID)
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check data length
 	}
 
-	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(u.Data)))
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	bytesWritten := binary.PutUvarint(varintBuf[:], uint64(len(u.Data)))
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(u.Data); err != nil {
+	if _, err := buf.Write(u.Data); err != nil {
 		return nil, err
 	}
 
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }

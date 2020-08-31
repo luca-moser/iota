@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -58,21 +57,15 @@ func (s *SignatureUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializati
 }
 
 func (s *SignatureUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], UnlockBlockSignature)
-
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
+	buf, _, _ := WriteTypeHeader(UnlockBlockSignature)
 	sigBytes, err := s.Signature.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := b.Write(sigBytes); err != nil {
+	if _, err := buf.Write(sigBytes); err != nil {
 		return nil, err
 	}
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
 
 // ReferenceUnlockBlock is an unlock block which references a previous unlock block.
@@ -94,18 +87,12 @@ func (r *ReferenceUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializati
 }
 
 func (r *ReferenceUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], UnlockBlockReference)
-
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	buf, varintBuf, _ := WriteTypeHeader(UnlockBlockReference)
+	bytesWritten := binary.PutUvarint(varintBuf[:], r.Reference)
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
-	bytesWritten = binary.PutUvarint(varintBuf[:], r.Reference)
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
 
 // UnlockBlockValidatorFunc which given the index of an unlock block and the unlock block itself, runs validations and returns an error if any should fail.

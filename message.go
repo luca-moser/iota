@@ -9,7 +9,6 @@ import (
 const (
 	MessageVersion    = 1
 	MessageHashLength = 32
-	MessageMinSize    = 2*MessageHashLength + OneByte + UInt64ByteSize
 )
 
 // PayloadSelector implements SerializableSelectorFunc for payload types.
@@ -88,25 +87,19 @@ func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int,
 }
 
 func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], MessageVersion)
+	buf, varintBuf, _ := WriteTypeHeader(MessageVersion)
 
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	if _, err := buf.Write(m.Parent1[:]); err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(m.Parent1[:]); err != nil {
-		return nil, err
-	}
-
-	if _, err := b.Write(m.Parent2[:]); err != nil {
+	if _, err := buf.Write(m.Parent2[:]); err != nil {
 		return nil, err
 	}
 
 	switch {
 	case m.Payload == nil:
-		if err := b.WriteByte(0); err != nil {
+		if err := buf.WriteByte(0); err != nil {
 			return nil, err
 		}
 	default:
@@ -121,19 +114,19 @@ func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 
 		// write payload length
 		bytesWritten := binary.PutUvarint(varintBuf[:], uint64(len(payloadData)))
-		if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+		if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 			return nil, err
 		}
 
 		// actual payload
-		if _, err := b.Write(payloadData); err != nil {
+		if _, err := buf.Write(payloadData); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := binary.Write(&b, binary.LittleEndian, m.Nonce); err != nil {
+	if err := binary.Write(buf, binary.LittleEndian, m.Nonce); err != nil {
 		return nil, err
 	}
 
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }

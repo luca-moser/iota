@@ -192,7 +192,7 @@ func ReadTypeAndAdvance(data []byte, shouldType uint64, deSeriMode DeSerializati
 }
 
 // WriteTypeHeader writes the type as a varint into a buffer and returns the allocated
-// varint buffer and with the type header filled buffer instance.
+// varint buffer byte slice and the bytes.Buffer containing the type value.
 func WriteTypeHeader(ty uint64) (*bytes.Buffer, [binary.MaxVarintLen64]byte, int) {
 	var b bytes.Buffer
 	var varintBuf [binary.MaxVarintLen64]byte

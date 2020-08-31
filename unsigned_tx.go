@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -119,16 +118,10 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		}
 	}
 
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], TransactionUnsigned)
+	buf, varintBuf, _ := WriteTypeHeader(TransactionUnsigned)
 
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
-
-	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(u.Inputs)))
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	bytesWritten := binary.PutUvarint(varintBuf[:], uint64(len(u.Inputs)))
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -142,7 +135,7 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize input at index %d: %w", i, err)
 		}
-		if _, err := b.Write(inputSer); err != nil {
+		if _, err := buf.Write(inputSer); err != nil {
 			return nil, err
 		}
 		if inputsLexicalOrderValidator != nil {
@@ -153,7 +146,7 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 	}
 
 	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(u.Outputs)))
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -167,7 +160,7 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize output at index %d: %w", i, err)
 		}
-		if _, err := b.Write(outputSer); err != nil {
+		if _, err := buf.Write(outputSer); err != nil {
 			return nil, err
 		}
 		if outputsLexicalOrderValidator != nil {
@@ -179,27 +172,27 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 
 	// no payload
 	if u.Payload == nil {
-		if err := b.WriteByte(0); err != nil {
+		if err := buf.WriteByte(0); err != nil {
 			return nil, err
 		}
-		return b.Bytes(), nil
+		return buf.Bytes(), nil
 	}
 
 	payloadSer, err := u.Payload.Serialize(deSeriMode)
-	if _, err := b.Write(payloadSer); err != nil {
+	if _, err := buf.Write(payloadSer); err != nil {
 		return nil, err
 	}
 
 	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(payloadSer)))
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(payloadSer); err != nil {
+	if _, err := buf.Write(payloadSer); err != nil {
 		return nil, err
 	}
 
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
 
 // SyntacticallyValid checks whether the unsigned transaction is syntactically valid by checking whether:

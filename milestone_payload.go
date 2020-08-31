@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 )
@@ -31,18 +30,15 @@ func (m *MilestonePayload) Deserialize(data []byte, deSeriMode DeSerializationMo
 	if err != nil {
 		return 0, fmt.Errorf("%w: can't read milestone index", err)
 	}
-
 	m.Index = index
 	data = data[indexBytesRead:]
-	if len(data) < UInt64ByteSize {
-		return 0, fmt.Errorf("%w: can't read milestone timestamp", ErrDeserializationNotEnoughData)
+
+	if len(data) < UInt64ByteSize+MilestoneInclusionMerkleProofLength+MilestoneSignatureLength {
+		return 0, fmt.Errorf("%w: not enough data available to read milestone timestamp, merkle proof and signature", ErrDeserializationNotEnoughData)
 	}
+
 	m.Timestamp = binary.LittleEndian.Uint64(data)
 	data = data[UInt64ByteSize:]
-
-	if len(data) < MilestoneInclusionMerkleProofLength+MilestoneSignatureLength {
-		return 0, fmt.Errorf("%w: for milestone inclusion merkle proof and signature", ErrDeserializationNotEnoughData)
-	}
 
 	copy(m.InclusionMerkleProof[:], data[:MilestoneInclusionMerkleProofLength])
 	data = data[MilestoneInclusionMerkleProofLength:]
@@ -52,30 +48,24 @@ func (m *MilestonePayload) Deserialize(data []byte, deSeriMode DeSerializationMo
 }
 
 func (m *MilestonePayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], MilestonePayloadID)
+	buf, varintBuf, _ := WriteTypeHeader(MilestonePayloadID)
 
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	bytesWritten := binary.PutUvarint(varintBuf[:], m.Index)
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
-	bytesWritten = binary.PutUvarint(varintBuf[:], m.Index)
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	if err := binary.Write(buf, binary.LittleEndian, m.Timestamp); err != nil {
 		return nil, err
 	}
 
-	if err := binary.Write(&b, binary.LittleEndian, m.Timestamp); err != nil {
+	if _, err := buf.Write(m.InclusionMerkleProof[:]); err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(m.InclusionMerkleProof[:]); err != nil {
+	if _, err := buf.Write(m.Signature[:]); err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(m.Signature[:]); err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }

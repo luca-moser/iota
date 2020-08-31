@@ -1,7 +1,6 @@
 package iota
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -97,26 +96,20 @@ func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]
 		}
 	}
 
-	var varintBuf [binary.MaxVarintLen64]byte
-	bytesWritten := binary.PutUvarint(varintBuf[:], SignedTransactionPayloadID)
-
-	var b bytes.Buffer
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
+	buf, varintBuf, _ := WriteTypeHeader(SignedTransactionPayloadID)
 
 	// write transaction
 	txBytes, err := s.Transaction.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := b.Write(txBytes); err != nil {
+	if _, err := buf.Write(txBytes); err != nil {
 		return nil, err
 	}
 
 	// write unlock blocks and count
-	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(s.UnlockBlocks)))
-	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+	bytesWritten := binary.PutUvarint(varintBuf[:], uint64(len(s.UnlockBlocks)))
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -125,10 +118,10 @@ func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]
 		if err != nil {
 			return nil, err
 		}
-		if _, err := b.Write(unlockBlockSer); err != nil {
+		if _, err := buf.Write(unlockBlockSer); err != nil {
 			return nil, err
 		}
 	}
 
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
