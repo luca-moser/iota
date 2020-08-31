@@ -9,7 +9,7 @@ import (
 )
 
 // Defines the type of inputs.
-type InputType = byte
+type InputType = uint64
 
 const (
 	// A type of input which references an unspent transaction output.
@@ -24,56 +24,46 @@ var (
 )
 
 // InputSelector implements SerializableSelectorFunc for input types.
-func InputSelector(typeByte byte) (Serializable, error) {
+func InputSelector(inputType uint64) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch inputType {
 	case InputUTXO:
 		seri = &UTXOInput{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownInputType, typeByte)
+		return nil, fmt.Errorf("%w: type %d", ErrUnknownInputType, inputType)
 	}
 	return seri, nil
 }
-
-// input type + tx id + index
-const UTXOInputMinSize = OneByte + TransactionIDLength + OneByte
-
-// input type + tx id + max index
-const UTXOInputMaxSize = OneByte + TransactionIDLength + binary.MaxVarintLen64
 
 // UTXOInput references an unspent transaction output by the signed transaction payload's hash and the corresponding index of the output.
 type UTXOInput struct {
 	// The transaction ID of the referenced transaction.
 	TransactionID [TransactionIDLength]byte `json:"transaction_id"`
 	// The output index of the output on the referenced transaction.
-	TransactionOutputIndex byte `json:"transaction_output_index"`
+	TransactionOutputIndex uint64 `json:"transaction_output_index"`
 }
 
 func (u *UTXOInput) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, InputUTXO); err != nil {
-			return 0, fmt.Errorf("unable to deserialize UTXO input: %w", err)
-		}
-
-		if err := checkMinByteLength(UTXOInputMinSize, len(data)); err != nil {
-			return 0, fmt.Errorf("invalid utxo input bytes: %w", err)
-		}
+	data, typeBytesRead, err := ReadTypeAndAdvance(data, InputUTXO, deSeriMode)
+	if err != nil {
+		return 0, err
 	}
 
-	// skip type
-	data = data[OneByte:]
+	if len(data) < TransactionIDLength {
+		return 0, fmt.Errorf("%w: unable to read transaction hash", ErrDeserializationNotEnoughData)
+	}
 
 	// transaction id
 	copy(u.TransactionID[:], data[:TransactionIDLength])
+	data = data[TransactionIDLength:]
 
 	// output index
-	outputIndex, outputIndexByteSize, err := ReadUvarint(bytes.NewReader(data[TransactionIDLength:]))
+	outputIndex, outputIndexByteSize, err := Uvarint(data)
 	if err != nil {
-		return 0, fmt.Errorf("%w: unable to read output index", err)
+		return 0, fmt.Errorf("%w: unable to read transaction output index", err)
 	}
 
-	outputIndexByte := byte(outputIndex)
-	u.TransactionOutputIndex = outputIndexByte
+	u.TransactionOutputIndex = outputIndex
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := utxoInputRefBoundsValidator(-1, u); err != nil {
@@ -81,7 +71,7 @@ func (u *UTXOInput) Deserialize(data []byte, deSeriMode DeSerializationMode) (in
 		}
 	}
 
-	return OneByte + TransactionIDLength + outputIndexByteSize, nil
+	return typeBytesRead + TransactionIDLength + outputIndexByteSize, nil
 }
 
 func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
@@ -91,8 +81,11 @@ func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err 
 		}
 	}
 
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], InputUTXO)
+
 	var b bytes.Buffer
-	if err := b.WriteByte(InputUTXO); err != nil {
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -100,7 +93,8 @@ func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err 
 		return nil, err
 	}
 
-	if err := b.WriteByte(u.TransactionOutputIndex); err != nil {
+	bytesWritten = binary.PutUvarint(varintBuf[:], u.TransactionOutputIndex)
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -118,7 +112,7 @@ func InputsUTXORefsUniqueValidator() InputsValidatorFunc {
 		if _, err := b.Write(input.TransactionID[:]); err != nil {
 			return err
 		}
-		if err := b.WriteByte(input.TransactionOutputIndex); err != nil {
+		if err := binary.Write(&b, binary.LittleEndian, input.TransactionOutputIndex); err != nil {
 			return err
 		}
 		k := b.String()

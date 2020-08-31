@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	UnsignedDataPayloadID      = 2
-	UnsignedDataPayloadMinSize = 2 * OneByte
+	UnsignedDataPayloadID = 2
 )
 
 // UnsignedDataPayload is a payload which holds a blob of unspecific data.
@@ -17,20 +16,15 @@ type UnsignedDataPayload struct {
 }
 
 func (u *UnsignedDataPayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, UnsignedDataPayloadID); err != nil {
-			return 0, fmt.Errorf("unable to deserialize unsigned data payload: %w", err)
-		}
-		if err := checkMinByteLength(UnsignedDataPayloadMinSize, len(data)); err != nil {
-			return 0, err
-		}
-	}
-	data = data[OneByte:]
-
-	// read data length
-	dataLength, dataLengthBytesRead, err := ReadUvarint(bytes.NewReader(data))
+	data, typeBytesRead, err := ReadTypeAndAdvance(data, UnsignedDataPayloadID, deSeriMode)
 	if err != nil {
 		return 0, err
+	}
+
+	// read data length
+	dataLength, dataLengthBytesRead, err := Uvarint(data)
+	if err != nil {
+		return 0, fmt.Errorf("%w: unable to read unsigned data payload's data length", err)
 	}
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
@@ -46,26 +40,27 @@ func (u *UnsignedDataPayload) Deserialize(data []byte, deSeriMode DeSerializatio
 	u.Data = make([]byte, dataLength)
 	copy(u.Data, data[:dataLength])
 
-	return OneByte + dataLengthBytesRead + int(dataLength), nil
+	return typeBytesRead + dataLengthBytesRead + int(dataLength), nil
 }
 
 func (u *UnsignedDataPayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], UnsignedDataPayloadID)
+
+	var b bytes.Buffer
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+		return nil, err
+	}
+
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check data length
 	}
-	var b bytes.Buffer
-	if err := b.WriteByte(UnsignedDataPayloadID); err != nil {
+
+	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(u.Data)))
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
-	// write data length
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(u.Data)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
-
-	// write data
 	if _, err := b.Write(u.Data); err != nil {
 		return nil, err
 	}

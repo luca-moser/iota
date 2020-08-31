@@ -27,7 +27,7 @@ func TestSignatureUnlockBlock_Deserialize(t *testing.T) {
 		}(),
 		func() test {
 			edSigBlock, edSigBlockData := randEd25519SignatureUnlockBlock()
-			return test{"not enough data", edSigBlockData[:5], edSigBlock, iota.ErrInvalidBytes}
+			return test{"not enough data", edSigBlockData[:5], edSigBlock, iota.ErrDeserializationNotEnoughData}
 		}(),
 	}
 

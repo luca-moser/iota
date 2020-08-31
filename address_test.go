@@ -26,9 +26,9 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 			"not enough bytes",
 			func() []byte {
 				_, wotsAddrData := randWOTSAddr()
-				return wotsAddrData[:iota.WOTSAddressSerializedBytesSize-1]
+				return wotsAddrData[:5]
 			}(),
-			iota.ErrInvalidBytes,
+			iota.ErrDeserializationNotEnoughData,
 		},
 	}
 
@@ -42,7 +42,8 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.wotsAddrData), bytesRead)
-			assert.Equal(t, tt.wotsAddrData[iota.OneByte:], wotsAddr[:])
+			addrOffset := len(tt.wotsAddrData) - iota.WOTSAddressBytesLength
+			assert.Equal(t, tt.wotsAddrData[addrOffset:], wotsAddr[:])
 		})
 	}
 }
@@ -85,9 +86,9 @@ func TestEd25519Address_Deserialize(t *testing.T) {
 			"not enough bytes",
 			func() []byte {
 				_, edAddrData := randEd25519Addr()
-				return edAddrData[:iota.Ed25519AddressSerializedBytesSize-1]
+				return edAddrData[:5]
 			}(),
-			iota.ErrInvalidBytes,
+			iota.ErrDeserializationNotEnoughData,
 		},
 	}
 

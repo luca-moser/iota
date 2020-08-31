@@ -24,7 +24,7 @@ type Serializables []Serializable
 
 // SerializableSelectorFunc is a function that given a type byte, returns an empty instance of the given underlying type.
 // If the type doesn't resolve, an error is returned.
-type SerializableSelectorFunc func(typeByte byte) (Serializable, error)
+type SerializableSelectorFunc func(ty uint64) (Serializable, error)
 
 // DeSerializationMode defines the mode of de/serialization.
 type DeSerializationMode byte
@@ -112,9 +112,9 @@ func (l LexicalOrderedByteSlices) Swap(i, j int) {
 // An optional ArrayRules can be passed in to return an error in case it is violated.
 func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, serSel SerializableSelectorFunc, arrayRules *ArrayRules) (Serializables, int, error) {
 	var bytesReadTotal int
-	seriCount, seriCountBytesSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
+	seriCount, seriCountBytesSize, err := Uvarint(data)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("%w: can't read array object length", err)
 	}
 	bytesReadTotal += seriCountBytesSize
 
@@ -156,10 +156,11 @@ func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, serS
 // DeserializeObject deserializes the given data into a Serializable.
 // The data is expected to start with the type denoting byte.
 func DeserializeObject(data []byte, deSeriMode DeSerializationMode, serSel SerializableSelectorFunc) (Serializable, int, error) {
-	if len(data) < 2 {
-		return nil, 0, ErrDeserializationNotEnoughData
+	ty, _, err := Uvarint(data)
+	if err != nil {
+		return nil, 0, fmt.Errorf("%w: can not deserialize inner object since type denotation is invalid", err)
 	}
-	seri, err := serSel(data[0])
+	seri, err := serSel(ty)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -168,4 +169,34 @@ func DeserializeObject(data []byte, deSeriMode DeSerializationMode, serSel Seria
 		return nil, 0, fmt.Errorf("unable to deserialize %T: %w", seri, err)
 	}
 	return seri, seriBytesConsumed, nil
+}
+
+// ReadTypeAndAdvance checks that the read type equals shouldType if deSeriMode is in validation mode and returns the data
+// byte slice advanced by the number of bytes read for the type and the number of bytes read from the origin data byte slice.
+func ReadTypeAndAdvance(data []byte, shouldType uint64, deSeriMode DeSerializationMode) ([]byte, int, error) {
+	var typeBytesRead int
+	var err error
+	switch {
+	case deSeriMode.HasMode(DeSeriModePerformValidation):
+		typeBytesRead, err = checkType(data, shouldType)
+		if err != nil {
+			return nil, 0, err
+		}
+	default:
+		_, typeBytesRead, err = Uvarint(data)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	return data[typeBytesRead:], typeBytesRead, nil
+}
+
+// WriteTypeHeader writes the type as a varint into a buffer and returns the allocated
+// varint buffer and with the type header filled buffer instance.
+func WriteTypeHeader(ty uint64) (*bytes.Buffer, [binary.MaxVarintLen64]byte, int) {
+	var b bytes.Buffer
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], ty)
+	b.Write(varintBuf[:bytesWritten])
+	return &b, varintBuf, bytesWritten
 }

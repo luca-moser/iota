@@ -8,7 +8,7 @@ import (
 )
 
 // Defines a type of unlock block.
-type UnlockBlockType = byte
+type UnlockBlockType = uint64
 
 const (
 	// Denotes a signature unlock block.
@@ -24,15 +24,15 @@ var (
 )
 
 // UnlockBlockSelector implements SerializableSelectorFunc for unlock block types.
-func UnlockBlockSelector(typeByte byte) (Serializable, error) {
+func UnlockBlockSelector(unlockBlockType uint64) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch unlockBlockType {
 	case UnlockBlockSignature:
 		seri = &SignatureUnlockBlock{}
 	case UnlockBlockReference:
 		seri = &ReferenceUnlockBlock{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownUnlockBlockType, typeByte)
+		return nil, fmt.Errorf("%w: type %d", ErrUnknownUnlockBlockType, unlockBlockType)
 	}
 	return seri, nil
 }
@@ -43,32 +43,36 @@ type SignatureUnlockBlock struct {
 }
 
 func (s *SignatureUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, UnlockBlockSignature); err != nil {
-			return 0, fmt.Errorf("unable to deserialize signature unlock block: %w", err)
-		}
+	data, typeBytesRead, err := ReadTypeAndAdvance(data, UnlockBlockSignature, deSeriMode)
+	if err != nil {
+		return 0, err
 	}
-
-	// skip type byte
-	bytesReadTotal := OneByte
-	data = data[OneByte:]
 
 	sig, sigBytesRead, err := DeserializeObject(data, deSeriMode, SignatureSelector)
 	if err != nil {
 		return 0, err
 	}
-	bytesReadTotal += sigBytesRead
 	s.Signature = sig
 
-	return bytesReadTotal, nil
+	return typeBytesRead + sigBytesRead, nil
 }
 
 func (s *SignatureUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], UnlockBlockSignature)
+
+	var b bytes.Buffer
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+		return nil, err
+	}
 	sigBytes, err := s.Signature.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte{UnlockBlockSignature}, sigBytes...), nil
+	if _, err := b.Write(sigBytes); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }
 
 // ReferenceUnlockBlock is an unlock block which references a previous unlock block.
@@ -77,24 +81,31 @@ type ReferenceUnlockBlock struct {
 }
 
 func (r *ReferenceUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, UnlockBlockReference); err != nil {
-			return 0, fmt.Errorf("unable to deserialize reference unlock block: %w", err)
-		}
-	}
-	data = data[OneByte:]
-	reference, referenceByteSize, err := ReadUvarint(bytes.NewReader(data))
+	data, typeBytesRead, err := ReadTypeAndAdvance(data, UnlockBlockReference, deSeriMode)
 	if err != nil {
 		return 0, err
 	}
+	reference, referenceByteSize, err := Uvarint(data)
+	if err != nil {
+		return 0, fmt.Errorf("%w: can't read unlock block reference", err)
+	}
 	r.Reference = reference
-	return OneByte + referenceByteSize, nil
+	return typeBytesRead + referenceByteSize, nil
 }
 
 func (r *ReferenceUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, r.Reference)
-	return append([]byte{UnlockBlockReference}, varIntBuf[:bytesWritten]...), nil
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], UnlockBlockReference)
+
+	var b bytes.Buffer
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+		return nil, err
+	}
+	bytesWritten = binary.PutUvarint(varintBuf[:], r.Reference)
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }
 
 // UnlockBlockValidatorFunc which given the index of an unlock block and the unlock block itself, runs validations and returns an error if any should fail.

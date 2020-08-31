@@ -287,7 +287,7 @@ func StreamLocalSnapshotDataFrom(reader io.Reader, compReaderInit CompressionRea
 				return err
 			}
 
-			addr, err := AddressSelector(addrType[0])
+			addr, err := AddressSelector(uint64(addrType[0]))
 			if err != nil {
 				return err
 			}

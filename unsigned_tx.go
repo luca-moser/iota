@@ -8,7 +8,7 @@ import (
 )
 
 // Defines the type of transaction.
-type TransactionType = byte
+type TransactionType = uint64
 
 const (
 	// Denotes an unsigned transaction.
@@ -27,13 +27,13 @@ var (
 )
 
 // TransactionSelector implements SerializableSelectorFunc for transaction types.
-func TransactionSelector(typeByte byte) (Serializable, error) {
+func TransactionSelector(txType uint64) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch txType {
 	case TransactionUnsigned:
 		seri = &UnsignedTransaction{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownTransactionType, typeByte)
+		return nil, fmt.Errorf("%w: type %d", ErrUnknownTransactionType, txType)
 	}
 	return seri, nil
 }
@@ -49,15 +49,12 @@ type UnsignedTransaction struct {
 }
 
 func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, TransactionUnsigned); err != nil {
-			return 0, fmt.Errorf("unable to deserialize unsigned transaction: %w", err)
-		}
+	data, typeBytesRead, err := ReadTypeAndAdvance(data, TransactionUnsigned, deSeriMode)
+	if err != nil {
+		return 0, err
 	}
 
-	// skip type byte
-	bytesReadTotal := OneByte
-	data = data[OneByte:]
+	bytesReadTotal := typeBytesRead
 
 	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, InputSelector, &inputsArrayBound)
 	if err != nil {
@@ -92,9 +89,9 @@ func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializatio
 	// advance to payload
 	// TODO: replace with payload deserializer
 	data = data[outputBytesRead:]
-	payloadLength, payloadLengthByteSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
+	payloadLength, payloadLengthByteSize, err := Uvarint(data)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%w: can't read inner payload length in unsigned transaction", ErrInvalidVarint)
 	}
 	bytesReadTotal += payloadLengthByteSize
 
@@ -122,14 +119,16 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		}
 	}
 
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], TransactionUnsigned)
+
 	var b bytes.Buffer
-	if err := b.WriteByte(TransactionUnsigned); err != nil {
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(u.Inputs)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(u.Inputs)))
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -153,9 +152,8 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		}
 	}
 
-	// reuse varIntBuf (this is safe as b.Write() copies the bytes)
-	bytesWritten = binary.PutUvarint(varIntBuf, uint64(len(u.Outputs)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(u.Outputs)))
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -192,8 +190,8 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		return nil, err
 	}
 
-	bytesWritten = binary.PutUvarint(varIntBuf, uint64(len(payloadSer)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(payloadSer)))
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 

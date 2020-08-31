@@ -1,7 +1,6 @@
 package iota_test
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"encoding/binary"
 	"fmt"
@@ -38,14 +37,28 @@ func randWOTSAddr() (*iota.WOTSAddress, []byte) {
 	wotsAddr := &iota.WOTSAddress{}
 	addr := randBytes(iota.WOTSAddressBytesLength)
 	copy(wotsAddr[:], addr)
-	return wotsAddr, append([]byte{iota.AddressWOTS}, addr...)
+
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], iota.AddressWOTS)
+	b := make([]byte, bytesWritten+iota.WOTSAddressBytesLength)
+	copy(b[:bytesWritten], varintBuf[:bytesWritten])
+	copy(b[bytesWritten:], wotsAddr[:])
+
+	return wotsAddr, b[:]
 }
 
 func randEd25519Addr() (*iota.Ed25519Address, []byte) {
 	edAddr := &iota.Ed25519Address{}
 	addr := randBytes(iota.Ed25519AddressBytesLength)
 	copy(edAddr[:], addr)
-	return edAddr, append([]byte{iota.AddressEd25519}, addr...)
+
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], iota.AddressEd25519)
+	b := make([]byte, bytesWritten+iota.Ed25519AddressBytesLength)
+	copy(b[:bytesWritten], varintBuf[:bytesWritten])
+	copy(b[bytesWritten:], edAddr[:])
+
+	return edAddr, b[:]
 }
 
 func randEd25519Signature() (*iota.Ed25519Signature, []byte) {
@@ -54,8 +67,16 @@ func randEd25519Signature() (*iota.Ed25519Signature, []byte) {
 	sig := randBytes(ed25519.SignatureSize)
 	copy(edSig.PublicKey[:], pub)
 	copy(edSig.Signature[:], sig)
-	b := append([]byte{iota.SignatureEd25519}, pub...)
-	return edSig, append(b, sig...)
+
+	buf, _, _ := iota.WriteTypeHeader(iota.SignatureEd25519)
+	if _, err := buf.Write(edSig.PublicKey[:]); err != nil {
+		panic(err)
+	}
+	if _, err := buf.Write(edSig.Signature[:]); err != nil {
+		panic(err)
+	}
+
+	return edSig, buf.Bytes()
 }
 
 func randLSTransactionUnspentOutputs(outputsCount int) *iota.LSTransactionUnspentOutputs {
@@ -79,40 +100,41 @@ func randLSTransactionUnspentOutputs(outputsCount int) *iota.LSTransactionUnspen
 func randEd25519SignatureUnlockBlock() (*iota.SignatureUnlockBlock, []byte) {
 	edSig, edSigData := randEd25519Signature()
 	block := &iota.SignatureUnlockBlock{Signature: edSig}
-	return block, append([]byte{iota.UnlockBlockSignature}, edSigData...)
+
+	buf, _, _ := iota.WriteTypeHeader(iota.UnlockBlockSignature)
+	if _, err := buf.Write(edSigData); err != nil {
+		panic(err)
+	}
+
+	return block, buf.Bytes()
 }
 
 func randReferenceUnlockBlock() (*iota.ReferenceUnlockBlock, []byte) {
-	var buf bytes.Buffer
-	index := rand.Intn(1000)
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(index))
-	if _, err := buf.Write(varIntBuf[:bytesWritten]); err != nil {
-		panic(err)
-	}
-	block := &iota.ReferenceUnlockBlock{Reference: uint64(index)}
-	return block, append([]byte{iota.UnlockBlockReference}, varIntBuf[:bytesWritten]...)
+	return referenceUnlockBlock(uint64(rand.Intn(1000)))
 }
 
 func referenceUnlockBlock(index uint64) (*iota.ReferenceUnlockBlock, []byte) {
-	var buf bytes.Buffer
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, index)
-	if _, err := buf.Write(varIntBuf[:bytesWritten]); err != nil {
+	block := &iota.ReferenceUnlockBlock{Reference: index}
+
+	buf, varintBuf, _ := iota.WriteTypeHeader(iota.UnlockBlockReference)
+	bytesWritten := binary.PutUvarint(varintBuf[:], block.Reference)
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		panic(err)
 	}
-	block := &iota.ReferenceUnlockBlock{Reference: uint64(index)}
-	return block, append([]byte{iota.UnlockBlockReference}, varIntBuf[:bytesWritten]...)
+
+	return block, buf.Bytes()
 }
 
 func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
-	var buf bytes.Buffer
 	tx := &iota.UnsignedTransaction{}
-	must(buf.WriteByte(iota.TransactionUnsigned))
+	buf, varintBuf, _ := iota.WriteTypeHeader(iota.TransactionUnsigned)
 
 	inputsBytes := iota.LexicalOrderedByteSlices{}
 	inputCount := rand.Intn(10) + 1
-	must(buf.WriteByte(byte(inputCount)))
+	bytesWritten := binary.PutUvarint(varintBuf[:], uint64(inputCount))
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
+		panic(err)
+	}
 	for i := inputCount; i > 0; i-- {
 		_, inputData := randUTXOInput()
 		inputsBytes = append(inputsBytes, inputData)
@@ -120,8 +142,9 @@ func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
 
 	sort.Sort(inputsBytes)
 	for _, inputData := range inputsBytes {
-		_, err := buf.Write(inputData)
-		must(err)
+		if _, err := buf.Write(inputData); err != nil {
+			panic(err)
+		}
 		input := &iota.UTXOInput{}
 		if _, err := input.Deserialize(inputData, iota.DeSeriModePerformValidation); err != nil {
 			panic(err)
@@ -131,7 +154,10 @@ func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
 
 	outputsBytes := iota.LexicalOrderedByteSlices{}
 	outputCount := rand.Intn(10) + 1
-	must(buf.WriteByte(byte(outputCount)))
+	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(outputCount))
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
+		panic(err)
+	}
 	for i := outputCount; i > 0; i-- {
 		_, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
 		outputsBytes = append(outputsBytes, depData)
@@ -148,52 +174,50 @@ func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
 		tx.Outputs = append(tx.Outputs, output)
 	}
 
-	// empty payload
-	must(buf.WriteByte(0))
+	// empty payload length
+	bytesWritten = binary.PutUvarint(varintBuf[:], 0)
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
+		panic(err)
+	}
 
 	return tx, buf.Bytes()
 }
 
 func randMilestonePayload() (*iota.MilestonePayload, []byte) {
-	inclusionMerkleProof := randBytes(iota.MilestoneInclusionMerkleProofLength)
-	signature := randBytes(iota.MilestoneSignatureLength)
 	msPayload := &iota.MilestonePayload{
 		Index:     uint64(rand.Intn(1000)),
 		Timestamp: uint64(time.Now().Unix()),
 		InclusionMerkleProof: func() [iota.MilestoneInclusionMerkleProofLength]byte {
 			b := [iota.MilestoneInclusionMerkleProofLength]byte{}
-			copy(b[:], inclusionMerkleProof)
+			copy(b[:], randBytes(iota.MilestoneInclusionMerkleProofLength))
 			return b
 		}(),
 		Signature: func() [iota.MilestoneSignatureLength]byte {
 			b := [iota.MilestoneSignatureLength]byte{}
-			copy(b[:], signature)
+			copy(b[:], randBytes(iota.MilestoneSignatureLength))
 			return b
 		}(),
 	}
 
-	var b bytes.Buffer
-	must(b.WriteByte(iota.MilestonePayloadID))
-
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, msPayload.Index)
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	buf, varintBuf, _ := iota.WriteTypeHeader(iota.MilestonePayloadID)
+	bytesWritten := binary.PutUvarint(varintBuf[:], msPayload.Index)
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		panic(err)
 	}
 
-	if err := binary.Write(&b, binary.LittleEndian, msPayload.Timestamp); err != nil {
+	if err := binary.Write(buf, binary.LittleEndian, msPayload.Timestamp); err != nil {
 		panic(err)
 	}
 
-	if _, err := b.Write(msPayload.InclusionMerkleProof[:]); err != nil {
+	if _, err := buf.Write(msPayload.InclusionMerkleProof[:]); err != nil {
 		panic(err)
 	}
 
-	if _, err := b.Write(msPayload.Signature[:]); err != nil {
+	if _, err := buf.Write(msPayload.Signature[:]); err != nil {
 		panic(err)
 	}
 
-	return msPayload, b.Bytes()
+	return msPayload, buf.Bytes()
 }
 
 func randUnsignedDataPayload(dataLength ...int) (*iota.UnsignedDataPayload, []byte) {
@@ -206,20 +230,17 @@ func randUnsignedDataPayload(dataLength ...int) (*iota.UnsignedDataPayload, []by
 	}
 	unsigDataPayload := &iota.UnsignedDataPayload{Data: data}
 
-	var b bytes.Buffer
-	must(b.WriteByte(iota.UnsignedDataPayloadID))
-
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(unsigDataPayload.Data)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	buf, varintBuf, _ := iota.WriteTypeHeader(iota.UnsignedDataPayloadID)
+	bytesWritten := binary.PutUvarint(varintBuf[:], uint64(len(unsigDataPayload.Data)))
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		panic(err)
 	}
 
-	if _, err := b.Write(unsigDataPayload.Data); err != nil {
+	if _, err := buf.Write(unsigDataPayload.Data); err != nil {
 		panic(err)
 	}
 
-	return unsigDataPayload, b.Bytes()
+	return unsigDataPayload, buf.Bytes()
 }
 
 func randMessage(withPayloadType int) (*iota.Message, []byte) {
@@ -239,41 +260,38 @@ func randMessage(withPayloadType int) (*iota.Message, []byte) {
 	m.Payload = payload
 	m.Nonce = uint64(rand.Intn(1000))
 
-	var b bytes.Buffer
-	must(b.WriteByte(iota.MessageVersion))
-	if _, err := b.Write(m.Parent1[:]); err != nil {
+	buf, varintBuf, _ := iota.WriteTypeHeader(iota.MilestonePayloadID)
+	if _, err := buf.Write(m.Parent1[:]); err != nil {
 		panic(err)
 	}
-	if _, err := b.Write(m.Parent2[:]); err != nil {
+	if _, err := buf.Write(m.Parent2[:]); err != nil {
 		panic(err)
 	}
 
 	switch {
 	case payload == nil:
 		// zero length payload
-		must(b.WriteByte(0))
+		must(buf.WriteByte(0))
 	default:
-		varIntBuf := make([]byte, binary.MaxVarintLen64)
-		bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(payloadData)))
-		if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+		bytesWritten := binary.PutUvarint(varintBuf[:], uint64(len(payloadData)))
+		if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 			panic(err)
 		}
 
 		// actual payload
-		if _, err := b.Write(payloadData); err != nil {
+		if _, err := buf.Write(payloadData); err != nil {
 			panic(err)
 		}
 	}
 
-	must(binary.Write(&b, binary.LittleEndian, m.Nonce))
+	must(binary.Write(buf, binary.LittleEndian, m.Nonce))
 
-	return m, b.Bytes()
+	return m, buf.Bytes()
 }
 
 func randSignedTransactionPayload() (*iota.SignedTransactionPayload, []byte) {
-	var buf bytes.Buffer
 	sigTxPayload := &iota.SignedTransactionPayload{}
-	must(buf.WriteByte(iota.SignedTransactionPayloadID))
+	buf, varintBuf, _ := iota.WriteTypeHeader(iota.SignedTransactionPayloadID)
 
 	unTx, unTxData := randUnsignedTransaction()
 	_, err := buf.Write(unTxData)
@@ -281,8 +299,11 @@ func randSignedTransactionPayload() (*iota.SignedTransactionPayload, []byte) {
 	sigTxPayload.Transaction = unTx
 
 	unlockBlocksCount := len(unTx.Inputs)
-	must(buf.WriteByte(byte(unlockBlocksCount)))
-	for i := unlockBlocksCount; i > 0; i-- {
+	bytesWritten := binary.PutUvarint(varintBuf[:], uint64(unlockBlocksCount))
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
+		panic(err)
+	}
+	for i := 0; i < unlockBlocksCount; i++ {
 		unlockBlock, unlockBlockData := randEd25519SignatureUnlockBlock()
 		_, err := buf.Write(unlockBlockData)
 		must(err)
@@ -294,29 +315,25 @@ func randSignedTransactionPayload() (*iota.SignedTransactionPayload, []byte) {
 
 func randUTXOInput() (*iota.UTXOInput, []byte) {
 	utxoInput := &iota.UTXOInput{}
-	var buf bytes.Buffer
-	must(buf.WriteByte(iota.InputUTXO))
+	buf, varintBuf, _ := iota.WriteTypeHeader(iota.InputUTXO)
 
 	txID := randBytes(iota.TransactionIDLength)
 	_, err := buf.Write(txID)
 	must(err)
 	copy(utxoInput.TransactionID[:], txID)
 
-	index := rand.Intn(iota.RefUTXOIndexMax)
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(index))
-	if _, err := buf.Write(varIntBuf[:bytesWritten]); err != nil {
+	index := uint64(rand.Intn(iota.RefUTXOIndexMax))
+	bytesWritten := binary.PutUvarint(varintBuf[:], index)
+	if _, err := buf.Write(varintBuf[:bytesWritten]); err != nil {
 		panic(err)
 	}
-	utxoInput.TransactionOutputIndex = byte(index)
+	utxoInput.TransactionOutputIndex = index
 	return utxoInput, buf.Bytes()
 }
 
 func randSigLockedSingleDeposit(addrType iota.AddressType) (*iota.SigLockedSingleDeposit, []byte) {
-	var buf bytes.Buffer
-	must(buf.WriteByte(iota.OutputSigLockedSingleDeposit))
-
 	dep := &iota.SigLockedSingleDeposit{}
+	buf, _, _ := iota.WriteTypeHeader(iota.OutputSigLockedSingleDeposit)
 
 	var addrData []byte
 	switch addrType {
@@ -331,9 +348,8 @@ func randSigLockedSingleDeposit(addrType iota.AddressType) (*iota.SigLockedSingl
 	_, err := buf.Write(addrData)
 	must(err)
 
-	amount := uint64(rand.Intn(10000))
-	must(binary.Write(&buf, binary.LittleEndian, amount))
-	dep.Amount = amount
+	dep.Amount = uint64(rand.Intn(10000))
+	must(binary.Write(buf, binary.LittleEndian, dep.Amount))
 
 	return dep, buf.Bytes()
 }

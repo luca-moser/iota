@@ -35,27 +35,25 @@ type Message struct {
 }
 
 func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, MessageVersion); err != nil {
-			return 0, fmt.Errorf("unable to deserialize message: %w", err)
-		}
-		if err := checkMinByteLength(MessageMinSize, len(data)); err != nil {
-			return 0, fmt.Errorf("invalid message bytes: %w", err)
-		}
+	originLength := len(data)
+	data, _, err := ReadTypeAndAdvance(data, AddressEd25519, deSeriMode)
+	if err != nil {
+		return 0, err
 	}
-	l := len(data)
 
 	// read parents
-	data = data[OneByte:]
+	if len(data) < MessageHashLength*2 {
+		return 0, fmt.Errorf("%w: unable to read message parents", ErrDeserializationNotEnoughData)
+	}
 	copy(m.Parent1[:], data[:MessageHashLength])
 	data = data[MessageHashLength:]
 	copy(m.Parent2[:], data[:MessageHashLength])
 	data = data[MessageHashLength:]
 
 	// read payload
-	payloadLength, payloadLengthByteSize, err := ReadUvarint(bytes.NewReader(data))
+	payloadLength, payloadLengthByteSize, err := Uvarint(data)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%w: unable to read message payload length", err)
 	}
 	data = data[payloadLengthByteSize:]
 
@@ -86,12 +84,15 @@ func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int,
 		return 0, err
 	}
 
-	return l, nil
+	return originLength, nil
 }
 
 func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], MessageVersion)
+
 	var b bytes.Buffer
-	if err := b.WriteByte(MessageVersion); err != nil {
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -119,9 +120,8 @@ func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 		}
 
 		// write payload length
-		varIntBuf := make([]byte, binary.MaxVarintLen64)
-		bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(payloadData)))
-		if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+		bytesWritten := binary.PutUvarint(varintBuf[:], uint64(len(payloadData)))
+		if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 			return nil, err
 		}
 

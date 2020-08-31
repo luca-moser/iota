@@ -2,43 +2,33 @@ package iota
 
 import (
 	"encoding/binary"
-	"errors"
-	"io"
+	"fmt"
 )
 
-var overflow = errors.New("binary: varint overflows a 64-bit integer")
+// Uvarint calls binary.Uvarint but ensures that only max
+// binary.MaxVarintLen64 bytes are passed from data to it. This, because binary.Uvarint
+// continuously reads bytes until a less than 0x80/128 byte is seen.
+func Uvarint(data []byte) (uint64, int, error) {
+	l := len(data)
+	if l == 0 {
+		return 0, 0, fmt.Errorf("%w: can't extract varint from zero length byte slice", ErrInvalidVarint)
+	}
 
-// ReadUvarint reads an encoded unsigned integer from r and returns it as a uint64.
-// This is merely a copy of the std lib's function with the additional amount of bytes read for the varint.
-func ReadUvarint(r io.ByteReader) (uint64, int, error) {
-	var x uint64
-	var s uint
+	var num uint64
 	var bytesRead int
-	for i := 0; i < binary.MaxVarintLen64; i++ {
-		b, err := r.ReadByte()
-		if err != nil {
-			return x, bytesRead, err
-		}
-		bytesRead++
-		if b < 0x80 {
-			if i == 9 && b > 1 {
-				return x, bytesRead, overflow
-			}
-			return x | uint64(b)<<s, bytesRead, nil
-		}
-		x |= uint64(b&0x7f) << s
-		s += 7
+	switch {
+	case l >= binary.MaxVarintLen64:
+		// limit so that only max binary.MaxVarintLen64 are read
+		num, bytesRead = binary.Uvarint(data[:binary.MaxVarintLen64])
+	default:
+		num, bytesRead = binary.Uvarint(data)
 	}
-	return x, bytesRead, overflow
-}
 
-// ReadVarint reads an encoded signed integer from r and returns it as an int64.
-// This is merely a copy of the std lib's function with the additional amount of bytes read for the varint.
-func ReadVarint(r io.ByteReader) (int64, int, error) {
-	ux, bytesRead, err := ReadUvarint(r) // ok to continue in presence of error
-	x := int64(ux >> 1)
-	if ux&1 != 0 {
-		x = ^x
+	switch {
+	case bytesRead < 0:
+		return 0, 0, fmt.Errorf("%w: varint value overflows binary.MaxVarintLen64", ErrInvalidVarint)
+	case bytesRead == 0:
+		return 0, 0, fmt.Errorf("%w: insufficient bytes to extract varint", ErrInvalidVarint)
 	}
-	return x, bytesRead, err
+	return num, bytesRead, nil
 }

@@ -3,6 +3,7 @@ package iota_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 
@@ -11,19 +12,19 @@ import (
 )
 
 const (
-	TypeA       = 0
-	TypeB       = 1
-	aKeyLength  = 16
-	bNameLength = 32
+	TypeA       uint64 = 0
+	TypeB       uint64 = 1
+	aKeyLength         = 16
+	bNameLength        = 32
 )
 
 var (
 	ErrUnknownDummyType = errors.New("unknown example type")
 )
 
-func DummyTypeSelector(typeByte byte) (iota.Serializable, error) {
+func DummyTypeSelector(ty uint64) (iota.Serializable, error) {
 	var seri iota.Serializable
-	switch typeByte {
+	switch ty {
 	case TypeA:
 		seri = &A{}
 	case TypeB:
@@ -39,21 +40,31 @@ type A struct {
 }
 
 func (a *A) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
-	data = data[iota.OneByte:]
-	copy(a.Key[:], data[:aKeyLength])
-	return iota.OneByte + aKeyLength, nil
+	data, typeBytesRead, err := iota.ReadTypeAndAdvance(data, TypeA, deSeriMode)
+	if err != nil {
+		return 0, err
+	}
+	if len(data) < aKeyLength {
+		return 0, fmt.Errorf("%w: can't read A key", iota.ErrDeserializationNotEnoughData)
+	}
+	copy(a.Key[:], data)
+	return typeBytesRead + aKeyLength, nil
 }
 
 func (a *A) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
-	var bytes [iota.OneByte + aKeyLength]byte
-	bytes[0] = TypeA
-	copy(bytes[iota.OneByte:], a.Key[:])
-	return bytes[:], nil
+	buf, _, _ := iota.WriteTypeHeader(TypeA)
+	if _, err := buf.Write(a.Key[:]); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func randSerializedA() []byte {
-	keyData := randBytes(aKeyLength)
-	return append([]byte{TypeA}, keyData...)
+	buf, _, _ := iota.WriteTypeHeader(TypeA)
+	if _, err := buf.Write(randBytes(aKeyLength)); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func randA() *A {
@@ -67,21 +78,31 @@ type B struct {
 }
 
 func (b *B) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
-	data = data[iota.OneByte:]
-	copy(b.Name[:], data[:bNameLength])
-	return iota.OneByte + bNameLength, nil
+	data, typeBytesRead, err := iota.ReadTypeAndAdvance(data, TypeB, deSeriMode)
+	if err != nil {
+		return 0, err
+	}
+	if len(data) < bNameLength {
+		return 0, fmt.Errorf("%w: can't read B name", iota.ErrDeserializationNotEnoughData)
+	}
+	copy(b.Name[:], data)
+	return typeBytesRead + bNameLength, nil
 }
 
 func (b *B) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
-	var bytes [iota.OneByte + bNameLength]byte
-	bytes[0] = TypeB
-	copy(bytes[iota.OneByte:], b.Name[:])
-	return bytes[:], nil
+	buf, _, _ := iota.WriteTypeHeader(TypeB)
+	if _, err := buf.Write(b.Name[:]); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func randSerializedB() []byte {
-	nameData := randBytes(bNameLength)
-	return append([]byte{TypeB}, nameData...)
+	buf, _, _ := iota.WriteTypeHeader(TypeB)
+	if _, err := buf.Write(randBytes(bNameLength)); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 func randB() *B {

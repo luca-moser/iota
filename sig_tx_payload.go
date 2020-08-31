@@ -49,20 +49,17 @@ type SignedTransactionPayload struct {
 }
 
 func (s *SignedTransactionPayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, SignedTransactionPayloadID); err != nil {
-			return 0, fmt.Errorf("unable to deserialize signed transaction payload: %w", err)
-		}
+	data, typeBytesRead, err := ReadTypeAndAdvance(data, SignedTransactionPayloadID, deSeriMode)
+	if err != nil {
+		return 0, err
 	}
-
-	// skip payload type
-	bytesReadTotal := OneByte
-	data = data[OneByte:]
+	bytesReadTotal := typeBytesRead
 
 	tx, txBytesRead, err := DeserializeObject(data, deSeriMode, TransactionSelector)
 	if err != nil {
 		return 0, err
 	}
+
 	bytesReadTotal += txBytesRead
 	s.Transaction = tx
 
@@ -100,8 +97,11 @@ func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]
 		}
 	}
 
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], SignedTransactionPayloadID)
+
 	var b bytes.Buffer
-	if err := b.WriteByte(SignedTransactionPayloadID); err != nil {
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -115,9 +115,8 @@ func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]
 	}
 
 	// write unlock blocks and count
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(s.UnlockBlocks)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	bytesWritten = binary.PutUvarint(varintBuf[:], uint64(len(s.UnlockBlocks)))
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
@@ -132,9 +131,4 @@ func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]
 	}
 
 	return b.Bytes(), nil
-}
-
-func (s *SignedTransactionPayload) Validate() error {
-
-	return nil
 }

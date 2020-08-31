@@ -11,7 +11,6 @@ const (
 	MilestoneInclusionMerkleProofLength = 64
 	MilestoneSignatureLength            = 64
 	MilestoneHashLength                 = 32
-	MilestonePayloadMinSize             = OneByte + OneByte + UInt64ByteSize + MilestoneInclusionMerkleProofLength + MilestoneSignatureLength
 )
 
 // MilestonePayload holds the inclusion merkle proof and milestone signature.
@@ -23,50 +22,46 @@ type MilestonePayload struct {
 }
 
 func (m *MilestonePayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, MilestonePayloadID); err != nil {
-			return 0, fmt.Errorf("unable to deserialize milestone payload: %w", err)
-		}
-		if err := checkMinByteLength(MilestonePayloadMinSize, len(data)); err != nil {
-			return 0, err
-		}
-	}
-	data = data[OneByte:]
-
-	index, indexBytesRead, err := ReadUvarint(bytes.NewReader(data))
+	data, typeBytesRead, err := ReadTypeAndAdvance(data, MilestonePayloadID, deSeriMode)
 	if err != nil {
 		return 0, err
 	}
+
+	index, indexBytesRead, err := Uvarint(data)
+	if err != nil {
+		return 0, fmt.Errorf("%w: can't read milestone index", err)
+	}
+
 	m.Index = index
 	data = data[indexBytesRead:]
-
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &m.Timestamp); err != nil {
-		return 0, err
+	if len(data) < UInt64ByteSize {
+		return 0, fmt.Errorf("%w: can't read milestone timestamp", ErrDeserializationNotEnoughData)
 	}
+	m.Timestamp = binary.LittleEndian.Uint64(data)
 	data = data[UInt64ByteSize:]
 
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if len(data) < MilestoneInclusionMerkleProofLength+MilestoneSignatureLength {
-			return 0, fmt.Errorf("%w: for milestone inclusion merkle proof and signature", ErrDeserializationNotEnoughData)
-		}
+	if len(data) < MilestoneInclusionMerkleProofLength+MilestoneSignatureLength {
+		return 0, fmt.Errorf("%w: for milestone inclusion merkle proof and signature", ErrDeserializationNotEnoughData)
 	}
 
 	copy(m.InclusionMerkleProof[:], data[:MilestoneInclusionMerkleProofLength])
 	data = data[MilestoneInclusionMerkleProofLength:]
 	copy(m.Signature[:], data[:MilestoneSignatureLength])
 
-	return OneByte + indexBytesRead + UInt64ByteSize + MilestoneInclusionMerkleProofLength + MilestoneSignatureLength, nil
+	return typeBytesRead + indexBytesRead + UInt64ByteSize + MilestoneInclusionMerkleProofLength + MilestoneSignatureLength, nil
 }
 
 func (m *MilestonePayload) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
+	var varintBuf [binary.MaxVarintLen64]byte
+	bytesWritten := binary.PutUvarint(varintBuf[:], MilestonePayloadID)
+
 	var b bytes.Buffer
-	if err := b.WriteByte(MilestonePayloadID); err != nil {
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, m.Index)
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	bytesWritten = binary.PutUvarint(varintBuf[:], m.Index)
+	if _, err := b.Write(varintBuf[:bytesWritten]); err != nil {
 		return nil, err
 	}
 

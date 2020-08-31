@@ -15,18 +15,24 @@ var (
 	ErrUnknownTransactionType        = errors.New("unknown transaction type")
 	ErrUnknownUnlockBlockType        = errors.New("unknown unlock block type")
 	ErrUnknownSignatureType          = errors.New("unknown signature type")
+	ErrInvalidVarint                 = errors.New("invalid varint")
 	ErrDeserializationNotEnoughData  = errors.New("not enough data for deserialization")
 	ErrDeserializationNotAllConsumed = errors.New("not all data has been consumed but should have been")
 )
 
-func checkType(data []byte, should byte) error {
+// checks whether data is for the given type and returns the amount of bytes read to perform this operation.
+func checkType(data []byte, shouldType uint64) (int, error) {
 	if data == nil || len(data) == 0 {
-		return fmt.Errorf("%w: can not evaluate type", ErrDeserializationNotEnoughData)
+		return 0, fmt.Errorf("%w: can not evaluate type", ErrDeserializationNotEnoughData)
 	}
-	if data[0] != should {
-		return fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, should, data[0])
+	typeData, bytesRead, err := Uvarint(data)
+	if err != nil {
+		return 0, fmt.Errorf("%w: can not evaluate type", err)
 	}
-	return nil
+	if typeData != shouldType {
+		return 0, fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, shouldType, typeData)
+	}
+	return bytesRead, nil
 }
 
 func checkExactByteLength(exact int, length int) error {
