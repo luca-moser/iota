@@ -8,12 +8,14 @@ import (
 )
 
 const (
-	SignedTransactionPayloadID = 0
+	SignedTransactionPayloadID uint32 = 0
 
 	MaxInputsCount  = 126
 	MinInputsCount  = 1
 	MaxOutputsCount = 126
 	MinOutputsCount = 1
+
+	SignedTransactionPayloadMinSize = UInt32ByteSize
 )
 
 var (
@@ -50,16 +52,19 @@ type SignedTransactionPayload struct {
 
 func (s *SignedTransactionPayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
+		if err := checkMinByteLength(SignedTransactionPayloadMinSize, len(data)); err != nil {
+			return 0, err
+		}
 		if err := checkType(data, SignedTransactionPayloadID); err != nil {
 			return 0, fmt.Errorf("unable to deserialize signed transaction payload: %w", err)
 		}
 	}
 
 	// skip payload type
-	bytesReadTotal := OneByte
-	data = data[OneByte:]
+	bytesReadTotal := TypeDenotationByteSize
+	data = data[TypeDenotationByteSize:]
 
-	tx, txBytesRead, err := DeserializeObject(data, deSeriMode, TransactionSelector)
+	tx, txBytesRead, err := DeserializeObject(data, deSeriMode, TypeDenotationByte, TransactionSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -67,11 +72,11 @@ func (s *SignedTransactionPayload) Deserialize(data []byte, deSeriMode DeSeriali
 	s.Transaction = tx
 
 	// TODO: tx must be an unsigned tx but might be something else in the future
-	inputCount := uint64(len(tx.(*UnsignedTransaction).Inputs))
+	inputCount := uint16(len(tx.(*UnsignedTransaction).Inputs))
 
 	// advance to unlock blocks
 	data = data[txBytesRead:]
-	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, deSeriMode, UnlockBlockSelector, &ArrayRules{
+	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, deSeriMode, TypeDenotationByte, UnlockBlockSelector, &ArrayRules{
 		Min:    inputCount,
 		Max:    inputCount,
 		MinErr: ErrUnlockBlocksMustMatchInputCount,
@@ -101,7 +106,7 @@ func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]
 	}
 
 	var b bytes.Buffer
-	if err := b.WriteByte(SignedTransactionPayloadID); err != nil {
+	if err := binary.Write(&b, binary.LittleEndian, SignedTransactionPayloadID); err != nil {
 		return nil, err
 	}
 
@@ -115,12 +120,9 @@ func (s *SignedTransactionPayload) Serialize(deSeriMode DeSerializationMode) ([]
 	}
 
 	// write unlock blocks and count
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(s.UnlockBlocks)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	if err := binary.Write(&b, binary.LittleEndian, uint16(len(s.UnlockBlocks))); err != nil {
 		return nil, err
 	}
-
 	for i := range s.UnlockBlocks {
 		unlockBlockSer, err := s.UnlockBlocks[i].Serialize(deSeriMode)
 		if err != nil {

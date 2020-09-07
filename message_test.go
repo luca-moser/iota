@@ -17,22 +17,22 @@ func TestMessage_Deserialize(t *testing.T) {
 	}
 	tests := []test{
 		func() test {
-			msPayload, msPayloadData := randMilestonePayload()
-			return test{"ok", msPayloadData, msPayload, nil}
+			msgPayload, msgPayloadData := randMessage(iota.SignedTransactionPayloadID)
+			return test{"ok", msgPayloadData, msgPayload, nil}
 		}(),
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msPayload := &iota.MilestonePayload{}
-			bytesRead, err := msPayload.Deserialize(tt.source, iota.DeSeriModePerformValidation)
+			msg := &iota.Message{}
+			bytesRead, err := msg.Deserialize(tt.source, iota.DeSeriModePerformValidation)
 			if tt.err != nil {
 				assert.True(t, errors.Is(err, tt.err))
 				return
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.source), bytesRead)
-			assert.EqualValues(t, tt.target, msPayload)
+			assert.EqualValues(t, tt.target, msg)
 		})
 	}
 }
@@ -40,13 +40,13 @@ func TestMessage_Deserialize(t *testing.T) {
 func TestMessage_Serialize(t *testing.T) {
 	type test struct {
 		name   string
-		source *iota.MilestonePayload
+		source *iota.Message
 		target []byte
 	}
 	tests := []test{
 		func() test {
-			msPayload, msPayloadData := randMilestonePayload()
-			return test{"ok", msPayload, msPayloadData}
+			msgPayload, msgPayloadData := randMessage(iota.SignedTransactionPayloadID)
+			return test{"ok", msgPayload, msgPayloadData}
 		}(),
 	}
 	for _, tt := range tests {

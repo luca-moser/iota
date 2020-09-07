@@ -27,7 +27,7 @@ func TestSigLockedSingleDeposit_Deserialize(t *testing.T) {
 		}(),
 		func() test {
 			dep, depData := randSigLockedSingleDeposit(iota.AddressWOTS)
-			return test{"not enough data wots", depData[:5], dep, iota.ErrInvalidBytes}
+			return test{"not enough data wots", depData[:5], dep, iota.ErrDeserializationNotEnoughData}
 		}(),
 		func() test {
 			dep, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
@@ -35,7 +35,7 @@ func TestSigLockedSingleDeposit_Deserialize(t *testing.T) {
 		}(),
 		func() test {
 			dep, depData := randSigLockedSingleDeposit(iota.AddressEd25519)
-			return test{"not enough data ed25519", depData[:5], dep, iota.ErrInvalidBytes}
+			return test{"not enough data ed25519", depData[:5], dep, iota.ErrDeserializationNotEnoughData}
 		}(),
 		func() test {
 			dep, depData := randSigLockedSingleDeposit(iota.AddressEd25519)

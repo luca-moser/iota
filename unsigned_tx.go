@@ -8,7 +8,7 @@ import (
 )
 
 // Defines the type of transaction.
-type TransactionType = byte
+type TransactionType = uint32
 
 const (
 	// Denotes an unsigned transaction.
@@ -27,13 +27,13 @@ var (
 )
 
 // TransactionSelector implements SerializableSelectorFunc for transaction types.
-func TransactionSelector(typeByte byte) (Serializable, error) {
+func TransactionSelector(txType uint32) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch txType {
 	case TransactionUnsigned:
 		seri = &UnsignedTransaction{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownTransactionType, typeByte)
+		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownTransactionType, txType)
 	}
 	return seri, nil
 }
@@ -56,10 +56,10 @@ func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializatio
 	}
 
 	// skip type byte
-	bytesReadTotal := OneByte
-	data = data[OneByte:]
+	bytesReadTotal := TypeDenotationByteSize
+	data = data[TypeDenotationByteSize:]
 
-	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, InputSelector, &inputsArrayBound)
+	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, TypeDenotationByte, InputSelector, &inputsArrayBound)
 	if err != nil {
 		return 0, err
 	}
@@ -70,12 +70,11 @@ func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializatio
 			return 0, err
 		}
 	}
-
 	u.Inputs = inputs
 
 	// advance to outputs
 	data = data[inputBytesRead:]
-	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, OutputSelector, &outputsArrayBound)
+	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, TypeDenotationByte, OutputSelector, &outputsArrayBound)
 	if err != nil {
 		return 0, err
 	}
@@ -86,24 +85,20 @@ func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializatio
 			return 0, err
 		}
 	}
-
 	u.Outputs = outputs
 
 	// advance to payload
 	// TODO: replace with payload deserializer
 	data = data[outputBytesRead:]
-	payloadLength, payloadLengthByteSize, err := ReadUvarint(bytes.NewReader(data[:binary.MaxVarintLen64]))
-	if err != nil {
-		return 0, err
-	}
-	bytesReadTotal += payloadLengthByteSize
+	payloadLength := binary.LittleEndian.Uint16(data)
+	bytesReadTotal += PayloadLengthByteSize
 
 	if payloadLength == 0 {
 		return bytesReadTotal, nil
 	}
 
 	// TODO: payload extraction logic
-	data = data[payloadLengthByteSize:]
+	data = data[UInt16ByteSize:]
 	switch data[0] {
 
 	}
@@ -122,14 +117,8 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		}
 	}
 
-	var b bytes.Buffer
-	if err := b.WriteByte(TransactionUnsigned); err != nil {
-		return nil, err
-	}
-
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-	bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(u.Inputs)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	var buf bytes.Buffer
+	if err := binary.Write(&buf, binary.LittleEndian, TransactionUnsigned); err != nil {
 		return nil, err
 	}
 
@@ -138,12 +127,16 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		inputsLexicalOrderValidator = inputsArrayBound.LexicalOrderValidator()
 	}
 
+	// write inputs
+	if err := binary.Write(&buf, binary.LittleEndian, uint16(len(u.Inputs))); err != nil {
+		return nil, err
+	}
 	for i := range u.Inputs {
 		inputSer, err := u.Inputs[i].Serialize(deSeriMode)
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize input at index %d: %w", i, err)
 		}
-		if _, err := b.Write(inputSer); err != nil {
+		if _, err := buf.Write(inputSer); err != nil {
 			return nil, err
 		}
 		if inputsLexicalOrderValidator != nil {
@@ -153,23 +146,21 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		}
 	}
 
-	// reuse varIntBuf (this is safe as b.Write() copies the bytes)
-	bytesWritten = binary.PutUvarint(varIntBuf, uint64(len(u.Outputs)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
-		return nil, err
-	}
-
 	var outputsLexicalOrderValidator LexicalOrderFunc
 	if deSeriMode.HasMode(DeSeriModePerformValidation) && outputsArrayBound.ElementBytesLexicalOrder {
 		outputsLexicalOrderValidator = outputsArrayBound.LexicalOrderValidator()
 	}
 
+	// write outputs
+	if err := binary.Write(&buf, binary.LittleEndian, uint16(len(u.Outputs))); err != nil {
+		return nil, err
+	}
 	for i := range u.Outputs {
 		outputSer, err := u.Outputs[i].Serialize(deSeriMode)
 		if err != nil {
 			return nil, fmt.Errorf("unable to serialize output at index %d: %w", i, err)
 		}
-		if _, err := b.Write(outputSer); err != nil {
+		if _, err := buf.Write(outputSer); err != nil {
 			return nil, err
 		}
 		if outputsLexicalOrderValidator != nil {
@@ -181,27 +172,26 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 
 	// no payload
 	if u.Payload == nil {
-		if err := b.WriteByte(0); err != nil {
+		if err := binary.Write(&buf, binary.LittleEndian, uint16(0)); err != nil {
 			return nil, err
 		}
-		return b.Bytes(), nil
+		return buf.Bytes(), nil
 	}
 
+	// write payload
 	payloadSer, err := u.Payload.Serialize(deSeriMode)
-	if _, err := b.Write(payloadSer); err != nil {
+	if _, err := buf.Write(payloadSer); err != nil {
 		return nil, err
 	}
 
-	bytesWritten = binary.PutUvarint(varIntBuf, uint64(len(payloadSer)))
-	if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, uint16(len(payloadSer))); err != nil {
+		return nil, err
+	}
+	if _, err := buf.Write(payloadSer); err != nil {
 		return nil, err
 	}
 
-	if _, err := b.Write(payloadSer); err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	return buf.Bytes(), nil
 }
 
 // SyntacticallyValid checks whether the unsigned transaction is syntactically valid by checking whether:

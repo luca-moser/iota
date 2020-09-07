@@ -2,6 +2,7 @@ package iota_test
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"sort"
 	"testing"
@@ -11,19 +12,21 @@ import (
 )
 
 const (
-	TypeA       = 0
-	TypeB       = 1
-	aKeyLength  = 16
-	bNameLength = 32
+	TypeA       byte = 0
+	TypeB       byte = 1
+	aKeyLength       = 16
+	bNameLength      = 32
+	typeALength      = iota.SmallTypeDenotationByteSize + aKeyLength
+	typeBLength      = iota.SmallTypeDenotationByteSize + bNameLength
 )
 
 var (
 	ErrUnknownDummyType = errors.New("unknown example type")
 )
 
-func DummyTypeSelector(typeByte byte) (iota.Serializable, error) {
+func DummyTypeSelector(dummyType uint32) (iota.Serializable, error) {
 	var seri iota.Serializable
-	switch typeByte {
+	switch byte(dummyType) {
 	case TypeA:
 		seri = &A{}
 	case TypeB:
@@ -39,21 +42,24 @@ type A struct {
 }
 
 func (a *A) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
-	data = data[iota.OneByte:]
+	data = data[iota.SmallTypeDenotationByteSize:]
 	copy(a.Key[:], data[:aKeyLength])
-	return iota.OneByte + aKeyLength, nil
+	return typeALength, nil
 }
 
 func (a *A) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
-	var bytes [iota.OneByte + aKeyLength]byte
-	bytes[0] = TypeA
-	copy(bytes[iota.OneByte:], a.Key[:])
-	return bytes[:], nil
+	var b [typeALength]byte
+	b[0] = TypeA
+	copy(b[iota.SmallTypeDenotationByteSize:], a.Key[:])
+	return b[:], nil
 }
 
 func randSerializedA() []byte {
+	var b [typeALength]byte
+	b[0] = TypeA
 	keyData := randBytes(aKeyLength)
-	return append([]byte{TypeA}, keyData...)
+	copy(b[iota.SmallTypeDenotationByteSize:], keyData)
+	return b[:]
 }
 
 func randA() *A {
@@ -67,21 +73,24 @@ type B struct {
 }
 
 func (b *B) Deserialize(data []byte, deSeriMode iota.DeSerializationMode) (int, error) {
-	data = data[iota.OneByte:]
+	data = data[iota.SmallTypeDenotationByteSize:]
 	copy(b.Name[:], data[:bNameLength])
-	return iota.OneByte + bNameLength, nil
+	return typeBLength, nil
 }
 
 func (b *B) Serialize(deSeriMode iota.DeSerializationMode) ([]byte, error) {
-	var bytes [iota.OneByte + bNameLength]byte
-	bytes[0] = TypeB
-	copy(bytes[iota.OneByte:], b.Name[:])
-	return bytes[:], nil
+	var bf [typeBLength]byte
+	bf[0] = TypeB
+	copy(bf[iota.SmallTypeDenotationByteSize:], b.Name[:])
+	return bf[:], nil
 }
 
 func randSerializedB() []byte {
+	var bf [typeBLength]byte
+	bf[0] = TypeB
 	nameData := randBytes(bNameLength)
-	return append([]byte{TypeB}, nameData...)
+	copy(bf[iota.SmallTypeDenotationByteSize:], nameData)
+	return bf[:]
 }
 
 func randB() *B {
@@ -96,24 +105,24 @@ func TestDeserializeA(t *testing.T) {
 	bytesRead, err := objA.Deserialize(seriA, iota.DeSeriModePerformValidation)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
-	assert.Equal(t, seriA[iota.OneByte:], objA.Key[:])
+	assert.Equal(t, seriA[iota.SmallTypeDenotationByteSize:], objA.Key[:])
 }
 
 func TestDeserializeObject(t *testing.T) {
 	seriA := randSerializedA()
-	objA, bytesRead, err := iota.DeserializeObject(seriA, iota.DeSeriModePerformValidation, DummyTypeSelector)
+	objA, bytesRead, err := iota.DeserializeObject(seriA, iota.DeSeriModePerformValidation, iota.TypeDenotationByte, DummyTypeSelector)
 	assert.NoError(t, err)
 	assert.Equal(t, len(seriA), bytesRead)
 	assert.IsType(t, &A{}, objA)
-	assert.Equal(t, seriA[iota.OneByte:], objA.(*A).Key[:])
+	assert.Equal(t, seriA[iota.SmallTypeDenotationByteSize:], objA.(*A).Key[:])
 }
 
 func TestDeserializeArrayOfObjects(t *testing.T) {
 	var buf bytes.Buffer
-	originObjs := []iota.Serializable{
+	originObjs := iota.Serializables{
 		randA(), randA(), randB(), randA(), randB(), randB(),
 	}
-	assert.NoError(t, buf.WriteByte(byte(len(originObjs))))
+	assert.NoError(t, binary.Write(&buf, binary.LittleEndian, uint16(len(originObjs))))
 
 	for _, seri := range originObjs {
 		seriBytes, err := seri.Serialize(iota.DeSeriModePerformValidation)
@@ -124,7 +133,7 @@ func TestDeserializeArrayOfObjects(t *testing.T) {
 	}
 
 	data := buf.Bytes()
-	seris, serisByteRead, err := iota.DeserializeArrayOfObjects(data, iota.DeSeriModePerformValidation, DummyTypeSelector, nil)
+	seris, serisByteRead, err := iota.DeserializeArrayOfObjects(data, iota.DeSeriModePerformValidation, iota.TypeDenotationByte, DummyTypeSelector, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, len(data), serisByteRead)
 	assert.EqualValues(t, originObjs, seris)

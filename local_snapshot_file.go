@@ -282,12 +282,13 @@ func StreamLocalSnapshotDataFrom(reader io.Reader, compReaderInit CompressionRea
 			}
 
 			// look ahead address type
-			var addrType [OneByte]byte
-			if _, err := io.ReadFull(readerToUse, addrType[:]); err != nil {
+			var addrTypeBuf [SmallTypeDenotationByteSize]byte
+			if _, err := io.ReadFull(readerToUse, addrTypeBuf[:]); err != nil {
 				return err
 			}
 
-			addr, err := AddressSelector(addrType[0])
+			addrType := addrTypeBuf[0]
+			addr, err := AddressSelector(uint32(addrType))
 			if err != nil {
 				return err
 			}
@@ -307,7 +308,7 @@ func StreamLocalSnapshotDataFrom(reader io.Reader, compReaderInit CompressionRea
 				return err
 			}
 
-			if _, err := addr.Deserialize(append([]byte{addrType[0]}, addrDataWithoutType...), DeSeriModePerformValidation); err != nil {
+			if _, err := addr.Deserialize(append(addrTypeBuf[:], addrDataWithoutType...), DeSeriModePerformValidation); err != nil {
 				return err
 			}
 			output.Address = addr

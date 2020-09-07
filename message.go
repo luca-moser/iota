@@ -9,19 +9,20 @@ import (
 const (
 	MessageVersion    = 1
 	MessageHashLength = 32
-	MessageMinSize    = 2*MessageHashLength + OneByte + UInt64ByteSize
+	// version + 2 msg hashes + uint16 payload length + nonce
+	MessageMinSize = MessageVersionByteSize + 2*MessageHashLength + UInt32ByteSize + UInt64ByteSize
 )
 
 // PayloadSelector implements SerializableSelectorFunc for payload types.
-func PayloadSelector(typeByte byte) (Serializable, error) {
+func PayloadSelector(payloadType uint32) (Serializable, error) {
 	var seri Serializable
-	switch typeByte {
+	switch payloadType {
 	case SignedTransactionPayloadID:
 		seri = &SignedTransactionPayload{}
 	case UnsignedDataPayloadID:
 		seri = &UnsignedDataPayload{}
 	default:
-		return nil, fmt.Errorf("%w: type byte %d", ErrUnknownPayloadType, typeByte)
+		return nil, fmt.Errorf("%w: type %d", ErrUnknownPayloadType, payloadType)
 	}
 	return seri, nil
 }
@@ -36,28 +37,25 @@ type Message struct {
 
 func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, MessageVersion); err != nil {
-			return 0, fmt.Errorf("unable to deserialize message: %w", err)
-		}
 		if err := checkMinByteLength(MessageMinSize, len(data)); err != nil {
 			return 0, fmt.Errorf("invalid message bytes: %w", err)
+		}
+		if err := checkTypeByte(data, MessageVersion); err != nil {
+			return 0, fmt.Errorf("unable to deserialize message: %w", err)
 		}
 	}
 	l := len(data)
 
 	// read parents
-	data = data[OneByte:]
+	data = data[MessageVersionByteSize:]
 	copy(m.Parent1[:], data[:MessageHashLength])
 	data = data[MessageHashLength:]
 	copy(m.Parent2[:], data[:MessageHashLength])
 	data = data[MessageHashLength:]
 
 	// read payload
-	payloadLength, payloadLengthByteSize, err := ReadUvarint(bytes.NewReader(data))
-	if err != nil {
-		return 0, err
-	}
-	data = data[payloadLengthByteSize:]
+	payloadLength := binary.LittleEndian.Uint32(data)
+	data = data[UInt32ByteSize:]
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: validate payload length
@@ -65,7 +63,7 @@ func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int,
 
 	var payloadBytesConsumed int
 	if payloadLength != 0 {
-		payload, err := PayloadSelector(data[0])
+		payload, err := PayloadSelector(binary.LittleEndian.Uint32(data))
 		if err != nil {
 			return 0, err
 		}
@@ -82,14 +80,21 @@ func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int,
 		return 0, fmt.Errorf("%w: %d are still available", ErrDeserializationNotAllConsumed, leftOver)
 	}
 
-	if err := binary.Read(bytes.NewReader(data), binary.LittleEndian, &m.Nonce); err != nil {
-		return 0, err
-	}
-
+	m.Nonce = binary.LittleEndian.Uint64(data)
 	return l, nil
 }
 
 func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
+	if m.Payload == nil {
+		var b [MessageMinSize]byte
+		b[0] = MessageVersion
+		copy(b[MessageVersionByteSize:], m.Parent1[:])
+		copy(b[MessageVersionByteSize+MessageHashLength:], m.Parent2[:])
+		binary.LittleEndian.PutUint32(b[MessageVersionByteSize+MessageHashLength*2:], 0)
+		binary.LittleEndian.PutUint64(b[len(b)-UInt64ByteSize:], m.Nonce)
+		return b[:], nil
+	}
+
 	var b bytes.Buffer
 	if err := b.WriteByte(MessageVersion); err != nil {
 		return nil, err
@@ -103,32 +108,23 @@ func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 		return nil, err
 	}
 
-	switch {
-	case m.Payload == nil:
-		if err := b.WriteByte(0); err != nil {
-			return nil, err
-		}
-	default:
-		payloadData, err := m.Payload.Serialize(deSeriMode)
-		if err != nil {
-			return nil, err
-		}
+	payloadData, err := m.Payload.Serialize(deSeriMode)
+	if err != nil {
+		return nil, err
+	}
 
-		if deSeriMode.HasMode(DeSeriModePerformValidation) {
-			// TODO: check payload length
-		}
+	payloadLength := uint32(len(payloadData))
 
-		// write payload length
-		varIntBuf := make([]byte, binary.MaxVarintLen64)
-		bytesWritten := binary.PutUvarint(varIntBuf, uint64(len(payloadData)))
-		if _, err := b.Write(varIntBuf[:bytesWritten]); err != nil {
-			return nil, err
-		}
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
+		// TODO: check payload length
+	}
 
-		// actual payload
-		if _, err := b.Write(payloadData); err != nil {
-			return nil, err
-		}
+	if err := binary.Write(&b, binary.LittleEndian, payloadLength); err != nil {
+		return nil, err
+	}
+
+	if _, err := b.Write(payloadData); err != nil {
+		return nil, err
 	}
 
 	if err := binary.Write(&b, binary.LittleEndian, m.Nonce); err != nil {

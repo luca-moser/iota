@@ -1,6 +1,7 @@
 package iota
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 )
@@ -19,12 +20,20 @@ var (
 	ErrDeserializationNotAllConsumed = errors.New("not all data has been consumed but should have been")
 )
 
-func checkType(data []byte, should byte) error {
-	if data == nil || len(data) == 0 {
-		return fmt.Errorf("%w: can not evaluate type", ErrDeserializationNotEnoughData)
+func checkType(data []byte, shouldType uint32) error {
+	actualType := binary.LittleEndian.Uint32(data)
+	if actualType != shouldType {
+		return fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, shouldType, actualType)
 	}
-	if data[0] != should {
-		return fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, should, data[0])
+	return nil
+}
+
+func checkTypeByte(data []byte, shouldType byte) error {
+	if data == nil || len(data) == 0 {
+		return fmt.Errorf("%w: can't check type byte", ErrDeserializationNotEnoughData)
+	}
+	if data[0] != shouldType {
+		return fmt.Errorf("%w: type denotation must be %d but is %d", ErrDeserializationTypeMismatch, shouldType, data[0])
 	}
 	return nil
 }
@@ -48,7 +57,7 @@ func checkByteLengthRange(min int, max int, length int) error {
 
 func checkMinByteLength(min int, length int) error {
 	if length < min {
-		return fmt.Errorf("%w: data must be at least %d bytes long but is %d", ErrInvalidBytes, min, length)
+		return fmt.Errorf("%w: data must be at least %d bytes long but is %d", ErrDeserializationNotEnoughData, min, length)
 	}
 	return nil
 }
