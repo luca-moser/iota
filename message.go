@@ -19,8 +19,8 @@ func PayloadSelector(payloadType uint32) (Serializable, error) {
 	switch payloadType {
 	case SignedTransactionPayloadID:
 		seri = &SignedTransactionPayload{}
-	case UnsignedDataPayloadID:
-		seri = &UnsignedDataPayload{}
+	case IndexationPayloadID:
+		seri = &IndexationPayload{}
 	default:
 		return nil, fmt.Errorf("%w: type %d", ErrUnknownPayloadType, payloadType)
 	}
@@ -53,29 +53,14 @@ func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int,
 	copy(m.Parent2[:], data[:MessageHashLength])
 	data = data[MessageHashLength:]
 
-	// read payload
-	payloadLength := binary.LittleEndian.Uint32(data)
-	data = data[UInt32ByteSize:]
-
-	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		// TODO: validate payload length
+	payload, payloadBytesRead, err := ParsePayload(data, deSeriMode)
+	if err != nil {
+		return 0, fmt.Errorf("%w: can't parse payload within message", err)
 	}
-
-	var payloadBytesConsumed int
-	if payloadLength != 0 {
-		payload, err := PayloadSelector(binary.LittleEndian.Uint32(data))
-		if err != nil {
-			return 0, err
-		}
-		payloadBytesConsumed, err = payload.Deserialize(data, deSeriMode)
-		if err != nil {
-			return 0, err
-		}
-		m.Payload = payload
-	}
+	m.Payload = payload
 
 	// must have consumed entire data slice minus the nonce
-	data = data[payloadBytesConsumed:]
+	data = data[payloadBytesRead:]
 	if leftOver := len(data) - UInt64ByteSize; leftOver != 0 {
 		return 0, fmt.Errorf("%w: %d are still available", ErrDeserializationNotAllConsumed, leftOver)
 	}

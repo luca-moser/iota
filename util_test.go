@@ -153,7 +153,7 @@ func randUnsignedTransaction() (*iota.UnsignedTransaction, []byte) {
 	}
 
 	// empty payload
-	must(binary.Write(&buf, binary.LittleEndian, uint16(0)))
+	must(binary.Write(&buf, binary.LittleEndian, uint32(0)))
 
 	return tx, buf.Bytes()
 }
@@ -192,7 +192,9 @@ func randMilestonePayload() (*iota.MilestonePayload, []byte) {
 	return msPayload, b.Bytes()
 }
 
-func randUnsignedDataPayload(dataLength ...int) (*iota.UnsignedDataPayload, []byte) {
+func randIndexationPayload(dataLength ...int) (*iota.IndexationPayload, []byte) {
+	const index = "寿司を作って"
+
 	var data []byte
 	switch {
 	case len(dataLength) > 0:
@@ -200,16 +202,25 @@ func randUnsignedDataPayload(dataLength ...int) (*iota.UnsignedDataPayload, []by
 	default:
 		data = randBytes(rand.Intn(200) + 1)
 	}
-	unsigDataPayload := &iota.UnsignedDataPayload{Data: data}
+
+	indexationPayload := &iota.IndexationPayload{Index: index, Data: data}
 
 	var b bytes.Buffer
-	must(binary.Write(&b, binary.LittleEndian, iota.UnsignedDataPayloadID))
-	must(binary.Write(&b, binary.LittleEndian, uint16(len(unsigDataPayload.Data))))
-	if _, err := b.Write(unsigDataPayload.Data); err != nil {
+	must(binary.Write(&b, binary.LittleEndian, iota.IndexationPayloadID))
+
+	strLen := uint16(len(index))
+	must(binary.Write(&b, binary.LittleEndian, strLen))
+
+	if _, err := b.Write([]byte(index)); err != nil {
 		panic(err)
 	}
 
-	return unsigDataPayload, b.Bytes()
+	must(binary.Write(&b, binary.LittleEndian, uint32(len(indexationPayload.Data))))
+	if _, err := b.Write(indexationPayload.Data); err != nil {
+		panic(err)
+	}
+
+	return indexationPayload, b.Bytes()
 }
 
 func randMessage(withPayloadType uint32) (*iota.Message, []byte) {
@@ -219,8 +230,8 @@ func randMessage(withPayloadType uint32) (*iota.Message, []byte) {
 	switch withPayloadType {
 	case iota.SignedTransactionPayloadID:
 		payload, payloadData = randSignedTransactionPayload()
-	case iota.UnsignedDataPayloadID:
-		payload, payloadData = randUnsignedDataPayload()
+	case iota.IndexationPayloadID:
+		payload, payloadData = randIndexationPayload()
 	}
 
 	m := &iota.Message{}

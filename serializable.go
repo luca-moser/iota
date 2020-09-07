@@ -113,8 +113,12 @@ func (l LexicalOrderedByteSlices) Swap(i, j int) {
 func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, typeDen TypeDenotationType, serSel SerializableSelectorFunc, arrayRules *ArrayRules) (Serializables, int, error) {
 	var bytesReadTotal int
 
+	if len(data) < StructArrayLengthByteSize {
+		return nil, 0, fmt.Errorf("%w: not enough data to deserialize struct array", ErrDeserializationNotEnoughData)
+	}
+
 	seriCount := binary.LittleEndian.Uint16(data)
-	bytesReadTotal += ArrayLengthByteSize
+	bytesReadTotal += StructArrayLengthByteSize
 
 	if arrayRules != nil && deSeriMode.HasMode(DeSeriModePerformValidation) {
 		if err := arrayRules.CheckBounds(seriCount); err != nil {
@@ -124,7 +128,7 @@ func DeserializeArrayOfObjects(data []byte, deSeriMode DeSerializationMode, type
 
 	// advance to objects
 	var seris Serializables
-	data = data[ArrayLengthByteSize:]
+	data = data[StructArrayLengthByteSize:]
 
 	var lexicalOrderValidator LexicalOrderFunc
 	if arrayRules != nil && arrayRules.ElementBytesLexicalOrder {
@@ -176,4 +180,21 @@ func DeserializeObject(data []byte, deSeriMode DeSerializationMode, typeDen Type
 		return nil, 0, fmt.Errorf("unable to deserialize %T: %w", seri, err)
 	}
 	return seri, seriBytesConsumed, nil
+}
+
+// ReadStringFromBytes reads a string from data by first reading the string length by reading a uint16
+// and then consuming that length from data.
+func ReadStringFromBytes(data []byte) (string, int, error) {
+	if len(data) < UInt16ByteSize {
+		return "", 0, fmt.Errorf("%w: can't read string length", ErrDeserializationNotEnoughData)
+	}
+
+	strLen := binary.LittleEndian.Uint16(data)
+	data = data[UInt16ByteSize:]
+
+	if len(data) < int(strLen) {
+		return "", 0, fmt.Errorf("%w: data is smaller than (%d) denoted string length of %d", ErrDeserializationNotEnoughData, len(data), strLen)
+	}
+
+	return string(data[:strLen]), int(strLen) + UInt16ByteSize, nil
 }

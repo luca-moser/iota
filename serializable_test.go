@@ -213,3 +213,52 @@ func TestSerializationMode_HasMode(t *testing.T) {
 		})
 	}
 }
+
+func TestReadStringFromBytes(t *testing.T) {
+	type args struct {
+		data []byte
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "ok",
+			args: args{
+				data: []byte{17, 0, 72, 101, 108, 108, 111, 44, 32, 112, 108, 97, 121, 103, 114, 111, 117, 110, 100},
+			},
+			want:    "Hello, playground",
+			wantErr: false,
+		},
+		{
+			name: "not enough (length denotation)",
+			args: args{
+				data: []byte{0, 1},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "not enough (actual length)",
+			args: args{
+				data: []byte{17, 0, 72, 101, 108, 108, 111, 44, 32, 112},
+			},
+			want:    "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, _, err := iota.ReadStringFromBytes(tt.args.data)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ReadStringFromBytes() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ReadStringFromBytes() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

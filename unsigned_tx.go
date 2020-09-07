@@ -15,6 +15,8 @@ const (
 	TransactionUnsigned TransactionType = iota
 
 	TransactionIDLength = 32
+
+	UnsignedTransactionMinByteSize = TypeDenotationByteSize + StructArrayLengthByteSize + StructArrayLengthByteSize + PayloadLengthByteSize
 )
 
 var (
@@ -50,6 +52,9 @@ type UnsignedTransaction struct {
 
 func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
+		if err := checkMinByteLength(UnsignedTransactionMinByteSize, len(data)); err != nil {
+			return 0, err
+		}
 		if err := checkType(data, TransactionUnsigned); err != nil {
 			return 0, fmt.Errorf("unable to deserialize unsigned transaction: %w", err)
 		}
@@ -88,21 +93,24 @@ func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializatio
 	u.Outputs = outputs
 
 	// advance to payload
-	// TODO: replace with payload deserializer
 	data = data[outputBytesRead:]
-	payloadLength := binary.LittleEndian.Uint16(data)
-	bytesReadTotal += PayloadLengthByteSize
 
-	if payloadLength == 0 {
-		return bytesReadTotal, nil
+	payload, payloadBytesRead, err := ParsePayload(data, deSeriMode)
+	if err != nil {
+		return 0, fmt.Errorf("%w: can't parse payload within unsigned transaction", err)
+	}
+	bytesReadTotal += payloadBytesRead
+
+	if deSeriMode.HasMode(DeSeriModePerformValidation) {
+		if payload != nil {
+			// supports only indexation payloads
+			if _, isIndexationPayload := payload.(*IndexationPayload); !isIndexationPayload {
+				return 0, fmt.Errorf("%w: unsigned transactions only allow embedded indexation payloads but got %T instead", ErrInvalidBytes, payload)
+			}
+		}
 	}
 
-	// TODO: payload extraction logic
-	data = data[UInt16ByteSize:]
-	switch data[0] {
-
-	}
-	bytesReadTotal += int(payloadLength)
+	u.Payload = payload
 
 	return bytesReadTotal, nil
 }
@@ -172,7 +180,7 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 
 	// no payload
 	if u.Payload == nil {
-		if err := binary.Write(&buf, binary.LittleEndian, uint16(0)); err != nil {
+		if err := binary.Write(&buf, binary.LittleEndian, uint32(0)); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil
@@ -184,7 +192,7 @@ func (u *UnsignedTransaction) Serialize(deSeriMode DeSerializationMode) (data []
 		return nil, err
 	}
 
-	if err := binary.Write(&buf, binary.LittleEndian, uint16(len(payloadSer))); err != nil {
+	if err := binary.Write(&buf, binary.LittleEndian, uint32(len(payloadSer))); err != nil {
 		return nil, err
 	}
 	if _, err := buf.Write(payloadSer); err != nil {

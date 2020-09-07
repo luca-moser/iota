@@ -25,10 +25,14 @@ const (
 	SmallTypeDenotationByteSize = OneByte
 	// The size of the version of a message.
 	MessageVersionByteSize = SmallTypeDenotationByteSize
-	// The size of array lengths denoting bytes.
-	ArrayLengthByteSize = UInt16ByteSize
+	// // The byte size of struct array lengths.
+	StructArrayLengthByteSize = UInt16ByteSize
+	// // The byte size of byte array lengths.
+	ByteArrayLengthByteSize = UInt32ByteSize
 	// The size of the payload length denoting bytes.
-	PayloadLengthByteSize = UInt16ByteSize
+	PayloadLengthByteSize = UInt32ByteSize
+	// The minimum size of a payload (together with its length denotation).
+	MinPayloadByteSize = UInt32ByteSize + OneByte
 	// The IOTA token supply.
 	TokenSupply = 2_779_530_283_277_761
 )
