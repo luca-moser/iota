@@ -17,11 +17,11 @@ type UnsignedDataPayload struct {
 
 func (u *UnsignedDataPayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, UnsignedDataPayloadID); err != nil {
-			return 0, fmt.Errorf("unable to deserialize unsigned data payload: %w", err)
-		}
 		if err := checkMinByteLength(UnsignedDataPayloadMinSize, len(data)); err != nil {
 			return 0, err
+		}
+		if err := checkType(data, UnsignedDataPayloadID); err != nil {
+			return 0, fmt.Errorf("unable to deserialize unsigned data payload: %w", err)
 		}
 	}
 	data = data[TypeDenotationByteSize:]

@@ -41,8 +41,8 @@ func randWOTSAddr() (*iota.WOTSAddress, []byte) {
 	copy(wotsAddr[:], addr)
 	// serialized
 	var b [iota.WOTSAddressSerializedBytesSize]byte
-	binary.LittleEndian.PutUint32(b[:iota.TypeDenotationByteSize], iota.AddressWOTS)
-	copy(b[iota.TypeDenotationByteSize:], addr)
+	b[0] = iota.AddressWOTS
+	copy(b[iota.SmallTypeDenotationByteSize:], addr)
 	return wotsAddr, b[:]
 }
 
@@ -53,8 +53,8 @@ func randEd25519Addr() (*iota.Ed25519Address, []byte) {
 	copy(edAddr[:], addr)
 	// serialized
 	var b [iota.Ed25519AddressSerializedBytesSize]byte
-	binary.LittleEndian.PutUint32(b[:iota.TypeDenotationByteSize], iota.AddressEd25519)
-	copy(b[iota.TypeDenotationByteSize:], addr)
+	b[0] = iota.AddressEd25519
+	copy(b[iota.SmallTypeDenotationByteSize:], addr)
 	return edAddr, b[:]
 }
 
@@ -94,9 +94,7 @@ func randLSTransactionUnspentOutputs(outputsCount int) *iota.LSTransactionUnspen
 func randEd25519SignatureUnlockBlock() (*iota.SignatureUnlockBlock, []byte) {
 	edSig, edSigData := randEd25519Signature()
 	block := &iota.SignatureUnlockBlock{Signature: edSig}
-	var b [iota.UInt32ByteSize]byte
-	binary.LittleEndian.PutUint32(b[:], iota.UnlockBlockSignature)
-	return block, append(b[:], edSigData...)
+	return block, append([]byte{iota.UnlockBlockSignature}, edSigData...)
 }
 
 func randReferenceUnlockBlock() (*iota.ReferenceUnlockBlock, []byte) {
@@ -105,8 +103,8 @@ func randReferenceUnlockBlock() (*iota.ReferenceUnlockBlock, []byte) {
 
 func referenceUnlockBlock(index uint16) (*iota.ReferenceUnlockBlock, []byte) {
 	var b [iota.ReferenceUnlockBlockSize]byte
-	binary.LittleEndian.PutUint32(b[:], iota.UnlockBlockReference)
-	binary.LittleEndian.PutUint16(b[iota.TypeDenotationByteSize:], index)
+	b[0] = iota.UnlockBlockReference
+	binary.LittleEndian.PutUint16(b[iota.SmallTypeDenotationByteSize:], index)
 	return &iota.ReferenceUnlockBlock{Reference: index}, b[:]
 }
 
@@ -232,7 +230,9 @@ func randMessage(withPayloadType uint32) (*iota.Message, []byte) {
 	m.Nonce = uint64(rand.Intn(1000))
 
 	var b bytes.Buffer
-	binary.LittleEndian.PutUint32(b.Next(iota.TypeDenotationByteSize), iota.MessageVersion)
+	if err := b.WriteByte(iota.MessageVersion); err != nil {
+		panic(err)
+	}
 	if _, err := b.Write(m.Parent1[:]); err != nil {
 		panic(err)
 	}
@@ -243,15 +243,21 @@ func randMessage(withPayloadType uint32) (*iota.Message, []byte) {
 	switch {
 	case payload == nil:
 		// zero length payload
-		binary.LittleEndian.PutUint16(b.Next(iota.PayloadLengthByteSize), 0)
+		if err := binary.Write(&b, binary.LittleEndian, uint32(0)); err != nil {
+			panic(err)
+		}
 	default:
-		// actual payload
-		binary.LittleEndian.PutUint16(b.Next(iota.PayloadLengthByteSize), uint16(len(payloadData)))
+		if err := binary.Write(&b, binary.LittleEndian, uint32(len(payloadData))); err != nil {
+			panic(err)
+		}
 		if _, err := b.Write(payloadData); err != nil {
 			panic(err)
 		}
 	}
-	binary.LittleEndian.PutUint64(b.Next(iota.UInt64ByteSize), m.Nonce)
+
+	if err := binary.Write(&b, binary.LittleEndian, m.Nonce); err != nil {
+		panic(err)
+	}
 	return m, b.Bytes()
 }
 
@@ -280,10 +286,10 @@ func randSignedTransactionPayload() (*iota.SignedTransactionPayload, []byte) {
 func randUTXOInput() (*iota.UTXOInput, []byte) {
 	utxoInput := &iota.UTXOInput{}
 	var b [iota.UTXOInputSize]byte
-	binary.LittleEndian.PutUint32(b[:iota.TypeDenotationByteSize], iota.InputUTXO)
+	b[0] = iota.InputUTXO
 
 	txID := randBytes(iota.TransactionIDLength)
-	copy(b[iota.TypeDenotationByteSize:], txID)
+	copy(b[iota.SmallTypeDenotationByteSize:], txID)
 	copy(utxoInput.TransactionID[:], txID)
 
 	index := uint16(rand.Intn(iota.RefUTXOIndexMax))
@@ -294,7 +300,7 @@ func randUTXOInput() (*iota.UTXOInput, []byte) {
 
 func randSigLockedSingleDeposit(addrType iota.AddressType) (*iota.SigLockedSingleDeposit, []byte) {
 	var buf bytes.Buffer
-	must(binary.Write(&buf, binary.LittleEndian, iota.OutputSigLockedSingleDeposit))
+	must(buf.WriteByte(iota.OutputSigLockedSingleDeposit))
 
 	dep := &iota.SigLockedSingleDeposit{}
 

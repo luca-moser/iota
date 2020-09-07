@@ -10,7 +10,7 @@ const (
 	MessageVersion    = 1
 	MessageHashLength = 32
 	// version + 2 msg hashes + uint16 payload length + nonce
-	MessageMinSize = TypeDenotationByteSize + 2*MessageHashLength + UInt16ByteSize + UInt64ByteSize
+	MessageMinSize = MessageVersionByteSize + 2*MessageHashLength + UInt32ByteSize + UInt64ByteSize
 )
 
 // PayloadSelector implements SerializableSelectorFunc for payload types.
@@ -37,25 +37,25 @@ type Message struct {
 
 func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, MessageVersion); err != nil {
-			return 0, fmt.Errorf("unable to deserialize message: %w", err)
-		}
 		if err := checkMinByteLength(MessageMinSize, len(data)); err != nil {
 			return 0, fmt.Errorf("invalid message bytes: %w", err)
+		}
+		if err := checkTypeByte(data, MessageVersion); err != nil {
+			return 0, fmt.Errorf("unable to deserialize message: %w", err)
 		}
 	}
 	l := len(data)
 
 	// read parents
-	data = data[TypeDenotationByteSize:]
+	data = data[MessageVersionByteSize:]
 	copy(m.Parent1[:], data[:MessageHashLength])
 	data = data[MessageHashLength:]
 	copy(m.Parent2[:], data[:MessageHashLength])
 	data = data[MessageHashLength:]
 
 	// read payload
-	payloadLength := binary.LittleEndian.Uint16(data)
-	data = data[UInt16ByteSize:]
+	payloadLength := binary.LittleEndian.Uint32(data)
+	data = data[UInt32ByteSize:]
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: validate payload length
@@ -87,19 +87,23 @@ func (m *Message) Deserialize(data []byte, deSeriMode DeSerializationMode) (int,
 func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	if m.Payload == nil {
 		var b [MessageMinSize]byte
-		binary.LittleEndian.PutUint32(b[:TypeDenotationByteSize], MessageVersion)
-		copy(b[TypeDenotationByteSize:], m.Parent1[:])
-		copy(b[TypeDenotationByteSize+MessageHashLength:], m.Parent2[:])
-		binary.LittleEndian.PutUint16(b[TypeDenotationByteSize+MessageHashLength*2:], 0)
+		b[0] = MessageVersion
+		copy(b[MessageVersionByteSize:], m.Parent1[:])
+		copy(b[MessageVersionByteSize+MessageHashLength:], m.Parent2[:])
+		binary.LittleEndian.PutUint32(b[MessageVersionByteSize+MessageHashLength*2:], 0)
 		binary.LittleEndian.PutUint64(b[len(b)-UInt64ByteSize:], m.Nonce)
 		return b[:], nil
 	}
 
-	b := bytes.NewBuffer(make([]byte, 0, MessageMinSize))
-	binary.LittleEndian.PutUint32(b.Next(UInt32ByteSize), MessageVersion)
+	var b bytes.Buffer
+	if err := b.WriteByte(MessageVersion); err != nil {
+		return nil, err
+	}
+
 	if _, err := b.Write(m.Parent1[:]); err != nil {
 		return nil, err
 	}
+
 	if _, err := b.Write(m.Parent2[:]); err != nil {
 		return nil, err
 	}
@@ -108,18 +112,24 @@ func (m *Message) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	payloadLength := uint16(len(payloadData))
+
+	payloadLength := uint32(len(payloadData))
 
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
 		// TODO: check payload length
 	}
 
-	binary.LittleEndian.PutUint16(b.Next(UInt16ByteSize), payloadLength)
+	if err := binary.Write(&b, binary.LittleEndian, payloadLength); err != nil {
+		return nil, err
+	}
+
 	if _, err := b.Write(payloadData); err != nil {
 		return nil, err
 	}
 
-	binary.LittleEndian.PutUint64(b.Next(UInt64ByteSize), m.Nonce)
+	if err := binary.Write(&b, binary.LittleEndian, m.Nonce); err != nil {
+		return nil, err
+	}
 
 	return b.Bytes(), nil
 }

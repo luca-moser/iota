@@ -55,11 +55,11 @@ type Ed25519Signature struct {
 
 func (e *Ed25519Signature) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, SignatureEd25519); err != nil {
-			return 0, fmt.Errorf("unable to deserialize Ed25519 signature: %w", err)
-		}
 		if err := checkMinByteLength(Ed25519SignatureSerializedBytesSize, len(data)); err != nil {
 			return 0, err
+		}
+		if err := checkType(data, SignatureEd25519); err != nil {
+			return 0, fmt.Errorf("unable to deserialize Ed25519 signature: %w", err)
 		}
 	}
 	// skip type byte

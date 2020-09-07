@@ -7,7 +7,7 @@ import (
 )
 
 // Defines a type of unlock block.
-type UnlockBlockType = uint32
+type UnlockBlockType = byte
 
 const (
 	// Denotes a signature unlock block.
@@ -15,8 +15,8 @@ const (
 	// Denotes a reference unlock block.
 	UnlockBlockReference
 
-	SignatureUnlockBlockMinSize = TypeDenotationByteSize
-	ReferenceUnlockBlockSize    = TypeDenotationByteSize + UInt16ByteSize
+	SignatureUnlockBlockMinSize = SmallTypeDenotationByteSize + Ed25519SignatureSerializedBytesSize
+	ReferenceUnlockBlockSize    = SmallTypeDenotationByteSize + UInt16ByteSize
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 // UnlockBlockSelector implements SerializableSelectorFunc for unlock block types.
 func UnlockBlockSelector(unlockBlockType uint32) (Serializable, error) {
 	var seri Serializable
-	switch unlockBlockType {
+	switch byte(unlockBlockType) {
 	case UnlockBlockSignature:
 		seri = &SignatureUnlockBlock{}
 	case UnlockBlockReference:
@@ -46,19 +46,19 @@ type SignatureUnlockBlock struct {
 
 func (s *SignatureUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, UnlockBlockSignature); err != nil {
-			return 0, fmt.Errorf("unable to deserialize signature unlock block: %w", err)
-		}
 		if err := checkMinByteLength(SignatureUnlockBlockMinSize, len(data)); err != nil {
 			return 0, err
+		}
+		if err := checkTypeByte(data, UnlockBlockSignature); err != nil {
+			return 0, fmt.Errorf("unable to deserialize signature unlock block: %w", err)
 		}
 	}
 
 	// skip type byte
-	bytesReadTotal := TypeDenotationByteSize
-	data = data[TypeDenotationByteSize:]
+	bytesReadTotal := SmallTypeDenotationByteSize
+	data = data[SmallTypeDenotationByteSize:]
 
-	sig, sigBytesRead, err := DeserializeObject(data, deSeriMode, SignatureSelector)
+	sig, sigBytesRead, err := DeserializeObject(data, deSeriMode, TypeDenotationByte, SignatureSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -73,9 +73,7 @@ func (s *SignatureUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte
 	if err != nil {
 		return nil, err
 	}
-	b := make([]byte, TypeDenotationByteSize)
-	binary.LittleEndian.PutUint32(b, UnlockBlockSignature)
-	return append(b, sigBytes...), nil
+	return append([]byte{UnlockBlockSignature}, sigBytes...), nil
 }
 
 // ReferenceUnlockBlock is an unlock block which references a previous unlock block.
@@ -85,22 +83,22 @@ type ReferenceUnlockBlock struct {
 
 func (r *ReferenceUnlockBlock) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, UnlockBlockReference); err != nil {
-			return 0, fmt.Errorf("unable to deserialize reference unlock block: %w", err)
-		}
 		if err := checkMinByteLength(ReferenceUnlockBlockSize, len(data)); err != nil {
 			return 0, err
 		}
+		if err := checkTypeByte(data, UnlockBlockReference); err != nil {
+			return 0, fmt.Errorf("unable to deserialize reference unlock block: %w", err)
+		}
 	}
-	data = data[TypeDenotationByteSize:]
+	data = data[SmallTypeDenotationByteSize:]
 	r.Reference = binary.LittleEndian.Uint16(data)
 	return ReferenceUnlockBlockSize, nil
 }
 
 func (r *ReferenceUnlockBlock) Serialize(deSeriMode DeSerializationMode) ([]byte, error) {
 	var b [ReferenceUnlockBlockSize]byte
-	binary.LittleEndian.PutUint32(b[:], UnlockBlockReference)
-	binary.LittleEndian.PutUint16(b[TypeDenotationByteSize:], r.Reference)
+	b[0] = UnlockBlockReference
+	binary.LittleEndian.PutUint16(b[SmallTypeDenotationByteSize:], r.Reference)
 	return b[:], nil
 }
 

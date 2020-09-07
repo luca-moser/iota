@@ -8,21 +8,21 @@ import (
 )
 
 // Defines the type of outputs.
-type OutputType = uint32
+type OutputType = byte
 
 const (
 	// Denotes a type of output which is locked by a signature and deposits onto a single address.
 	OutputSigLockedSingleDeposit OutputType = iota
 
 	// The size of a sig locked single deposit containing a WOTS address as its deposit address.
-	SigLockedSingleDepositWOTSAddrBytesSize = TypeDenotationByteSize + WOTSAddressSerializedBytesSize + UInt64ByteSize
+	SigLockedSingleDepositWOTSAddrBytesSize = SmallTypeDenotationByteSize + WOTSAddressSerializedBytesSize + UInt64ByteSize
 	// The size of a sig locked single deposit containing an Ed25519 address as its deposit address.
-	SigLockedSingleDepositEd25519AddrBytesSize = TypeDenotationByteSize + Ed25519AddressSerializedBytesSize + UInt64ByteSize
+	SigLockedSingleDepositEd25519AddrBytesSize = SmallTypeDenotationByteSize + Ed25519AddressSerializedBytesSize + UInt64ByteSize
 
 	// Defines the minimum size a sig locked single deposit must be.
 	SigLockedSingleDepositBytesMinSize = SigLockedSingleDepositEd25519AddrBytesSize
 	// Defines the offset at which the address portion within a sig locked single deposit begins.
-	SigLockedSingleDepositAddressOffset = TypeDenotationByteSize
+	SigLockedSingleDepositAddressOffset = SmallTypeDenotationByteSize
 )
 
 var (
@@ -32,7 +32,7 @@ var (
 // OutputSelector implements SerializableSelectorFunc for output types.
 func OutputSelector(outputType uint32) (Serializable, error) {
 	var seri Serializable
-	switch outputType {
+	switch byte(outputType) {
 	case OutputSigLockedSingleDeposit:
 		seri = &SigLockedSingleDeposit{}
 	default:
@@ -51,18 +51,16 @@ type SigLockedSingleDeposit struct {
 
 func (s *SigLockedSingleDeposit) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, OutputSigLockedSingleDeposit); err != nil {
-			return 0, fmt.Errorf("unable to deserialize signature locked single deposit: %w", err)
-		}
-
 		if err := checkMinByteLength(SigLockedSingleDepositBytesMinSize, len(data)); err != nil {
 			return 0, err
 		}
+		if err := checkTypeByte(data, OutputSigLockedSingleDeposit); err != nil {
+			return 0, fmt.Errorf("unable to deserialize signature locked single deposit: %w", err)
+		}
 	}
 
-	data = data[TypeDenotationByteSize:]
-
-	addr, addrBytesRead, err := DeserializeObject(data, deSeriMode, AddressSelector)
+	data = data[SmallTypeDenotationByteSize:]
+	addr, addrBytesRead, err := DeserializeObject(data, deSeriMode, TypeDenotationByte, AddressSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -79,7 +77,7 @@ func (s *SigLockedSingleDeposit) Deserialize(data []byte, deSeriMode DeSerializa
 		}
 	}
 
-	return TypeDenotationByteSize + addrBytesRead + UInt64ByteSize, nil
+	return SmallTypeDenotationByteSize + addrBytesRead + UInt64ByteSize, nil
 }
 
 func (s *SigLockedSingleDeposit) Serialize(deSeriMode DeSerializationMode) (data []byte, err error) {
@@ -99,12 +97,12 @@ func (s *SigLockedSingleDeposit) Serialize(deSeriMode DeSerializationMode) (data
 		return nil, ErrUnknownAddrType
 	}
 
-	binary.LittleEndian.PutUint32(b, OutputSigLockedSingleDeposit)
+	b[0] = OutputSigLockedSingleDeposit
 	addrBytes, err := s.Address.Serialize(deSeriMode)
 	if err != nil {
 		return nil, err
 	}
-	copy(b[TypeDenotationByteSize:], addrBytes)
+	copy(b[SmallTypeDenotationByteSize:], addrBytes)
 	binary.LittleEndian.PutUint64(b[len(b)-UInt64ByteSize:], s.Amount)
 	return b, nil
 }

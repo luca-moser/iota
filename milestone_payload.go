@@ -23,11 +23,11 @@ type MilestonePayload struct {
 
 func (m *MilestonePayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
-		if err := checkType(data, MilestonePayloadID); err != nil {
-			return 0, fmt.Errorf("unable to deserialize milestone payload: %w", err)
-		}
 		if err := checkMinByteLength(MilestonePayloadSize, len(data)); err != nil {
 			return 0, err
+		}
+		if err := checkType(data, MilestonePayloadID); err != nil {
+			return 0, fmt.Errorf("unable to deserialize milestone payload: %w", err)
 		}
 	}
 	data = data[TypeDenotationByteSize:]

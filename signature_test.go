@@ -27,7 +27,7 @@ func TestEd25519Signature_Deserialize(t *testing.T) {
 		}(),
 		func() test {
 			edSig, edSigData := randEd25519Signature()
-			return test{"not enough data", edSigData[:5], edSig, iota.ErrInvalidBytes}
+			return test{"not enough data", edSigData[:5], edSig, iota.ErrDeserializationNotEnoughData}
 		}(),
 	}
 

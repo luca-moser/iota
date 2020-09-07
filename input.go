@@ -8,7 +8,7 @@ import (
 )
 
 // Defines the type of inputs.
-type InputType = uint32
+type InputType = byte
 
 const (
 	// A type of input which references an unspent transaction output.
@@ -18,7 +18,7 @@ const (
 	RefUTXOIndexMax = 126
 
 	// input type + tx id + index
-	UTXOInputSize = TypeDenotationByteSize + TransactionIDLength + UInt16ByteSize
+	UTXOInputSize = SmallTypeDenotationByteSize + TransactionIDLength + UInt16ByteSize
 )
 
 var (
@@ -28,7 +28,7 @@ var (
 // InputSelector implements SerializableSelectorFunc for input types.
 func InputSelector(inputType uint32) (Serializable, error) {
 	var seri Serializable
-	switch inputType {
+	switch byte(inputType) {
 	case InputUTXO:
 		seri = &UTXOInput{}
 	default:
@@ -50,12 +50,12 @@ func (u *UTXOInput) Deserialize(data []byte, deSeriMode DeSerializationMode) (in
 		if err := checkMinByteLength(UTXOInputSize, len(data)); err != nil {
 			return 0, fmt.Errorf("invalid utxo input bytes: %w", err)
 		}
-		if err := checkType(data, InputUTXO); err != nil {
+		if err := checkTypeByte(data, InputUTXO); err != nil {
 			return 0, fmt.Errorf("unable to deserialize UTXO input: %w", err)
 		}
 	}
 
-	data = data[TypeDenotationByteSize:]
+	data = data[SmallTypeDenotationByteSize:]
 
 	// read transaction id
 	copy(u.TransactionID[:], data[:TransactionIDLength])
@@ -81,8 +81,8 @@ func (u *UTXOInput) Serialize(deSeriMode DeSerializationMode) (data []byte, err 
 	}
 
 	var b [UTXOInputSize]byte
-	binary.LittleEndian.PutUint32(b[:], InputUTXO)
-	copy(b[TypeDenotationByteSize:], u.TransactionID[:])
+	b[0] = InputUTXO
+	copy(b[SmallTypeDenotationByteSize:], u.TransactionID[:])
 	binary.LittleEndian.PutUint16(b[UTXOInputSize-UInt16ByteSize:], u.TransactionOutputIndex)
 	return b[:], nil
 }
@@ -107,7 +107,6 @@ func InputsUTXORefsUniqueValidator() InputsValidatorFunc {
 		}
 		set[k] = index
 		return nil
-
 	}
 }
 

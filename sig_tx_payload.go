@@ -14,6 +14,8 @@ const (
 	MinInputsCount  = 1
 	MaxOutputsCount = 126
 	MinOutputsCount = 1
+
+	SignedTransactionPayloadMinSize = UInt32ByteSize
 )
 
 var (
@@ -50,6 +52,9 @@ type SignedTransactionPayload struct {
 
 func (s *SignedTransactionPayload) Deserialize(data []byte, deSeriMode DeSerializationMode) (int, error) {
 	if deSeriMode.HasMode(DeSeriModePerformValidation) {
+		if err := checkMinByteLength(SignedTransactionPayloadMinSize, len(data)); err != nil {
+			return 0, err
+		}
 		if err := checkType(data, SignedTransactionPayloadID); err != nil {
 			return 0, fmt.Errorf("unable to deserialize signed transaction payload: %w", err)
 		}
@@ -59,7 +64,7 @@ func (s *SignedTransactionPayload) Deserialize(data []byte, deSeriMode DeSeriali
 	bytesReadTotal := TypeDenotationByteSize
 	data = data[TypeDenotationByteSize:]
 
-	tx, txBytesRead, err := DeserializeObject(data, deSeriMode, TransactionSelector)
+	tx, txBytesRead, err := DeserializeObject(data, deSeriMode, TypeDenotationByte, TransactionSelector)
 	if err != nil {
 		return 0, err
 	}
@@ -71,7 +76,7 @@ func (s *SignedTransactionPayload) Deserialize(data []byte, deSeriMode DeSeriali
 
 	// advance to unlock blocks
 	data = data[txBytesRead:]
-	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, deSeriMode, UnlockBlockSelector, &ArrayRules{
+	unlockBlocks, unlockBlocksByteRead, err := DeserializeArrayOfObjects(data, deSeriMode, TypeDenotationByte, UnlockBlockSelector, &ArrayRules{
 		Min:    inputCount,
 		Max:    inputCount,
 		MinErr: ErrUnlockBlocksMustMatchInputCount,

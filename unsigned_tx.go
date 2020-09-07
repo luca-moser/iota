@@ -59,7 +59,7 @@ func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializatio
 	bytesReadTotal := TypeDenotationByteSize
 	data = data[TypeDenotationByteSize:]
 
-	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, InputSelector, &inputsArrayBound)
+	inputs, inputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, TypeDenotationByte, InputSelector, &inputsArrayBound)
 	if err != nil {
 		return 0, err
 	}
@@ -74,7 +74,7 @@ func (u *UnsignedTransaction) Deserialize(data []byte, deSeriMode DeSerializatio
 
 	// advance to outputs
 	data = data[inputBytesRead:]
-	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, OutputSelector, &outputsArrayBound)
+	outputs, outputBytesRead, err := DeserializeArrayOfObjects(data, deSeriMode, TypeDenotationByte, OutputSelector, &outputsArrayBound)
 	if err != nil {
 		return 0, err
 	}

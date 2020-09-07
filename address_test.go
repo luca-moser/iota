@@ -28,7 +28,7 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 				_, wotsAddrData := randWOTSAddr()
 				return wotsAddrData[:iota.WOTSAddressSerializedBytesSize-1]
 			}(),
-			iota.ErrInvalidBytes,
+			iota.ErrDeserializationNotEnoughData,
 		},
 	}
 
@@ -42,7 +42,7 @@ func TestWOTSAddress_Deserialize(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.wotsAddrData), bytesRead)
-			assert.Equal(t, tt.wotsAddrData[iota.TypeDenotationByteSize:], wotsAddr[:])
+			assert.Equal(t, tt.wotsAddrData[iota.SmallTypeDenotationByteSize:], wotsAddr[:])
 		})
 	}
 }
@@ -87,7 +87,7 @@ func TestEd25519Address_Deserialize(t *testing.T) {
 				_, edAddrData := randEd25519Addr()
 				return edAddrData[:iota.Ed25519AddressSerializedBytesSize-1]
 			}(),
-			iota.ErrInvalidBytes,
+			iota.ErrDeserializationNotEnoughData,
 		},
 	}
 
@@ -101,7 +101,7 @@ func TestEd25519Address_Deserialize(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Equal(t, len(tt.edAddrData), bytesRead)
-			assert.Equal(t, tt.edAddrData[iota.TypeDenotationByteSize:], edAddr[:])
+			assert.Equal(t, tt.edAddrData[iota.SmallTypeDenotationByteSize:], edAddr[:])
 		})
 	}
 }

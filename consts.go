@@ -21,10 +21,21 @@ const (
 	Float64ByteSize = 8
 	// The size of a type denotation.
 	TypeDenotationByteSize = UInt32ByteSize
+	// The size of a type denotation for a small range of possible values.
+	SmallTypeDenotationByteSize = OneByte
+	// The size of the version of a message.
+	MessageVersionByteSize = SmallTypeDenotationByteSize
 	// The size of array lengths denoting bytes.
 	ArrayLengthByteSize = UInt16ByteSize
 	// The size of the payload length denoting bytes.
 	PayloadLengthByteSize = UInt16ByteSize
 	// The IOTA token supply.
 	TokenSupply = 2_779_530_283_277_761
+)
+
+type TypeDenotationType byte
+
+const (
+	TypeDenotationUint32 TypeDenotationType = iota
+	TypeDenotationByte
 )
