@@ -12,7 +12,7 @@ const (
 	IndexationPayloadMinSize = TypeDenotationByteSize + UInt16ByteSize + OneByte + UInt32ByteSize
 )
 
-// IndexationPayload is a payload which holds a blob of unspecific data.
+// IndexationPayload is a payload which holds an index and associated data.
 type IndexationPayload struct {
 	Index string `json:"index"`
 	Data  []byte `json:"data"`
